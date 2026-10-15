@@ -1,0 +1,602 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Essensdienst Opti-Training</title>
+  <!-- Supabase JS Client per CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #faf9f4;
+      --surface: #ffffff;
+      --surface-2: #efece1;
+      --ink: #17150f;
+      --ink-dim: #5d594b;
+      --accent: #f0b429;
+      --accent-ink: #17150f;
+      --accent-text: #8a6410;
+      --pending: #5b6b7a;
+      --pending-bg: #e4e8ec;
+      --warn: #b23a4e;
+      --warn-bg: #f7dde1;
+      --ok: #2f6b49;
+      --ok-bg: #dcebe0;
+      --border: rgba(23, 21, 15, 0.14);
+      --shadow: 0 1px 2px rgba(23, 21, 15, 0.06), 0 6px 20px rgba(23, 21, 15, 0.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 64px; }
+    header.top {
+      position: sticky; top: 0; z-index: 20; background: var(--bg);
+      border-bottom: 1px solid var(--border); padding: 14px 16px 12px;
+    }
+    header.top .inner { max-width: 760px; margin: 0 auto; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .brand { display: flex; flex-direction: column; gap: 2px; }
+    .brand .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-text); }
+    .brand h1 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
+    .conn-status { font-size: 12px; color: var(--ink-dim); }
+    section { margin-top: 22px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+    h2.section-title { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 10px; }
+    h3.season-title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; margin: 0 0 10px; }
+    .season-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; }
+    .season-tag.winter { background: var(--ink); color: var(--accent); }
+    .season-tag.sommer { background: var(--accent); color: var(--accent-ink); }
+    .season-note { font-size: 12.5px; color: var(--ink-dim); margin: -4px 0 12px; }
+    .identity-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .identity-row input { flex: 1 1 160px; min-width: 120px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--ink); font-size: 16px; }
+    .btn { appearance: none; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 40px; }
+    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .btn.ghost { background: transparent; }
+    .btn.small { padding: 7px 12px; font-size: 12.5px; min-height: 34px; }
+    .btn.danger { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+    .banner { background: var(--warn-bg); border: 1px solid var(--warn); color: var(--warn); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; }
+    .banner ul { margin: 8px 0 0; padding-left: 18px; font-weight: 500; }
+    .inline-link { color: var(--warn); text-decoration: underline; cursor: pointer; font-weight: 700; }
+    .date-row { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .date-row:last-child { border-bottom: none; }
+    .date-row.flagged { background: var(--warn-bg); margin: 0 -18px; padding: 12px 18px; border-radius: 10px; border-bottom-color: transparent; }
+    .date-block { width: 58px; flex: none; text-align: center; }
+    .date-block .day { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    .date-block .mon { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--ink-dim); letter-spacing: 0.04em; }
+    .date-meta { flex: 1 1 auto; min-width: 0; }
+    .date-meta .title-line { font-weight: 700; font-size: 14.5px; }
+    .date-meta .sub-line { font-size: 12.5px; color: var(--ink-dim); margin-top: 1px; }
+    .slots { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .slot { display: flex; align-items: center; gap: 6px; min-height: 38px; border-radius: 999px; padding: 8px 14px; font-size: 13.5px; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
+    .slot.filled { background: var(--ok-bg); color: var(--ok); }
+    .slot.filled.mine { border-color: var(--ok); }
+    .slot.empty { background: var(--surface-2); color: var(--ink-dim); border-style: dashed; border-color: var(--border); }
+    .slot .phone { opacity: 0.8; font-weight: 500; }
+    .slot-flag-note { font-size: 12px; margin-top: 6px; color: var(--warn); font-weight: 700; }
+    .admin-del { flex: none; background: none; border: none; color: var(--ink-dim); cursor: pointer; font-size: 16px; padding: 4px; }
+    .admin-del:hover { color: var(--warn); }
+    .mine-item { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+    .quota-row { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+    .quota-pill { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); }
+    .quota-pill.ok { background: var(--ok-bg); color: var(--ok); }
+    .quota-pill.open { background: var(--pending-bg); color: var(--pending); }
+    table.overview { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.overview th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-dim); padding: 4px 6px; border-bottom: 1px solid var(--border); }
+    table.overview td { padding: 7px 6px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+    .wrap-scroll { overflow-x: auto; }
+    .info-text { white-space: pre-wrap; font-size: 14px; color: var(--ink); }
+    .info-empty { color: var(--ink-dim); font-style: italic; }
+    textarea.info-edit { width: 100%; min-height: 90px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--ink); font-family: inherit; font-size: 16px; resize: vertical; }
+    .edit-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .add-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
+    .add-form input, .add-form select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; color: var(--ink); font-size: 16px; width: 100%; }
+    .add-form label { font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 3px; }
+    .history-toggle { font-size: 13px; font-weight: 700; color: var(--accent-text); background: none; border: none; cursor: pointer; padding: 0; }
+    .history-list { margin-top: 12px; max-height: 320px; overflow-y: auto; }
+    .history-entry { display: flex; gap: 10px; font-size: 12.5px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .history-entry .ts { flex: none; width: 118px; color: var(--ink-dim); font-family: monospace; font-size: 11.5px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-dim); margin-top: 10px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+    .dot.ok { background: var(--ok); }
+    .dot.empty { background: var(--ink-dim); }
+    .dot.warn { background: var(--warn); }
+    .admin-chip { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 3px 9px; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(13, 31, 48, 0.55); display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: var(--surface); border-radius: 14px; padding: 20px; max-width: 420px; width: 100%; box-shadow: var(--shadow); max-height: 86vh; overflow-y: auto; }
+    .modal h3 { margin: 0 0 4px; font-size: 16px; }
+    .modal .sub { font-size: 12.5px; color: var(--ink-dim); margin-bottom: 14px; }
+    .modal .field { margin-bottom: 10px; }
+    .modal label { font-size: 11px; color: var(--ink-dim); text-transform: uppercase; display: block; margin-bottom: 4px; }
+    .modal input { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 10px; color: var(--ink); font-size: 16px; }
+    .modal .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .error-msg { color: var(--warn); font-size: 12.5px; margin-top: 6px; }
+    .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 60; box-shadow: var(--shadow); text-align: center; }
+    .footer-note { text-align: center; font-size: 12px; color: var(--ink-dim); margin-top: 30px; }
+    .muted { color: var(--ink-dim); }
+    .empty-state { font-size: 13.5px; color: var(--ink-dim); padding: 6px 0; }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="inner">
+      <div class="brand">
+        <span class="eyebrow">Opti-Training</span>
+        <h1>Essensdienst</h1>
+      </div>
+      <div id="connStatus" class="conn-status">Verbinde mit Supabase…</div>
+    </div>
+  </header>
+
+  <section class="card" id="identityCard">
+    <h2 class="section-title">Wer bist du?</h2>
+    <div class="identity-row">
+      <input id="nameInput" type="text" placeholder="Dein Name" autocomplete="name" />
+      <input id="phoneInput" type="tel" placeholder="Telefon (optional)" autocomplete="tel" />
+      <button class="btn primary small" id="saveIdentityBtn">Speichern</button>
+      <span id="adminChip"></span>
+    </div>
+    <p class="season-note" style="margin-top:8px;">Dein Name wird nur in diesem Browser gespeichert, um deine Termine anzuzeigen.</p>
+  </section>
+
+  <section class="card" id="infoBox">
+    <h2 class="section-title">Allgemeine Infos zum Essen</h2>
+    <div id="infoDisplay"></div>
+  </section>
+
+  <section id="bannerSection" style="display:none;">
+    <div class="banner" id="bannerContent"></div>
+  </section>
+
+  <section class="card" id="mineCard">
+    <h2 class="section-title">Meine Termine</h2>
+    <div id="mineContent"><p class="empty-state">Gib oben deinen Namen ein, um deine Termine zu sehen.</p></div>
+  </section>
+
+  <section class="card" id="winterSection">
+    <h3 class="season-title"><span class="season-tag winter">Winter</span> Wintertraining</h3>
+    <p class="season-note">November &amp; Dezember — jede Familie übernimmt mindestens <strong>1 Termin</strong>.</p>
+    <div id="winterList"></div>
+    <div id="winterAddForm"></div>
+  </section>
+
+  <section class="card" id="sommerSection">
+    <h3 class="season-title"><span class="season-tag sommer">Sommer</span> Sommertraining</h3>
+    <p class="season-note">April bis Oktober — jede Familie übernimmt mindestens <strong>2 Termine</strong>.</p>
+    <div id="sommerList"></div>
+    <div id="sommerAddForm"></div>
+  </section>
+
+  <section class="card" id="overviewCard">
+    <h2 class="section-title">Alle Eltern im Überblick</h2>
+    <div class="wrap-scroll"><table class="overview" id="overviewTable"></table></div>
+    <div class="legend">
+      <span><span class="dot ok"></span> Termin übernommen</span>
+      <span><span class="dot empty"></span> noch offen</span>
+      <span><span class="dot warn"></span> Vertretung gesucht</span>
+    </div>
+  </section>
+
+  <section class="card" id="historyCard">
+    <button class="history-toggle" id="historyToggle">Änderungsprotokoll anzeigen ▾</button>
+    <div class="history-list" id="historyList" style="display:none;"></div>
+  </section>
+
+  <p class="footer-note">Essensdienst-Tool · Powered by Supabase</p>
+</div>
+
+<!-- Modals -->
+<div class="modal-backdrop" id="signupModalBackdrop">
+  <div class="modal">
+    <h3 id="signupModalTitle">Eintragen</h3>
+    <p class="sub" id="signupModalSub"></p>
+    <div class="field"><label>Name</label><input id="signupName" type="text" placeholder="Dein Name" /></div>
+    <div class="field"><label>Telefon (optional)</label><input id="signupPhone" type="tel" placeholder="Für Rückfragen" /></div>
+    <div class="error-msg" id="signupError" style="display:none;"></div>
+    <div class="actions">
+      <button class="btn ghost" id="signupCancel">Abbrechen</button>
+      <button class="btn primary" id="signupConfirm">Eintragen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="withdrawModalBackdrop">
+  <div class="modal">
+    <h3>Austragen</h3>
+    <p class="sub" id="withdrawSub"></p>
+    <div class="error-msg" id="withdrawError" style="display:none;"></div>
+    <div class="actions">
+      <button class="btn ghost" id="withdrawCancel">Abbrechen</button>
+      <button class="btn danger" id="withdrawConfirmPlain">Austragen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="infoEditBackdrop">
+  <div class="modal">
+    <h3>Infos bearbeiten</h3>
+    <textarea class="info-edit" id="infoEditArea"></textarea>
+    <div class="actions">
+      <button class="btn ghost" id="infoEditCancel">Abbrechen</button>
+      <button class="btn primary" id="infoEditSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="confirmModalBackdrop">
+  <div class="modal">
+    <h3 id="confirmModalTitle">Bitte bestätigen</h3>
+    <p class="sub" id="confirmModalText"></p>
+    <div class="actions">
+      <button class="btn ghost" id="confirmModalCancel">Abbrechen</button>
+      <button class="btn danger" id="confirmModalOk">Bestätigen</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // --- SUPABASE CONFIGURATION ---
+  const SUPABASE_URL = "https://kzuyhxgdarwsfyixrijs.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_Ls1UBu9MAfkXUSxhpiogQA_HRzTi9vI";
+
+  let supabaseClient = null;
+  try {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    document.getElementById("connStatus").textContent = "Supabase-Initialisierung fehlgeschlagen.";
+  }
+
+  let datesById = {};
+  let infoData = null;
+  let pendingSignupDateId = null;
+  let pendingWithdraw = null;
+  let confirmCallback = null;
+  
+  const urlParams = new URLSearchParams(window.location.search);
+  const isOwner = urlParams.get("admin") === "1";
+  document.getElementById("adminChip").innerHTML = isOwner ? '<span class="admin-chip">Admin</span>' : "";
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function norm(name) { return String(name || "").trim().toLowerCase(); }
+  function nowIso() { return new Date().toISOString(); }
+  function fmtTs(iso) {
+    try {
+      var d = new Date(iso);
+      return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }) + " " +
+        d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    } catch (e) { return ""; }
+  }
+  function dayNum(dateStr) { return parseInt(dateStr.split("-")[2], 10); }
+  function monShort(dateStr) { return new Date(dateStr + "T00:00:00").toLocaleDateString("de-DE", { month: "short" }).replace(".", ""); }
+  function weekdayShort(dateStr) { return new Date(dateStr + "T00:00:00").toLocaleDateString("de-DE", { weekday: "short" }); }
+  function longDate(dateStr) { return new Date(dateStr + "T00:00:00").toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }); }
+  
+  function toast(msg) {
+    var host = document.getElementById("toastHost");
+    var el = document.createElement("div");
+    el.className = "toast";
+    el.textContent = msg;
+    host.innerHTML = "";
+    host.appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4200);
+  }
+
+  function showConfirm(message, onYes, okLabel) {
+    document.getElementById("confirmModalText").textContent = message;
+    document.getElementById("confirmModalOk").textContent = okLabel || "Bestätigen";
+    confirmCallback = onYes;
+    document.getElementById("confirmModalBackdrop").classList.add("open");
+  }
+
+  function getMyIdentity() {
+    return {
+      name: localStorage.getItem("essensdienst_name") || "",
+      phone: localStorage.getItem("essensdienst_phone") || ""
+    };
+  }
+  function setMyIdentity(name, phone) {
+    localStorage.setItem("essensdienst_name", name || "");
+    localStorage.setItem("essensdienst_phone", phone || "");
+  }
+  function sortedDates() {
+    return Object.keys(datesById).map(function (k) { return datesById[k]; })
+      .sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+  }
+
+  async function init() {
+    if (!supabaseClient) return;
+    document.getElementById("connStatus").textContent = "Verbunden";
+    setupAddForms();
+
+    var ident = getMyIdentity();
+    document.getElementById("nameInput").value = ident.name;
+    document.getElementById("phoneInput").value = ident.phone;
+
+    await fetchDates();
+    await fetchInfo();
+
+    supabaseClient
+      .channel('public-db')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dates' }, payload => {
+        fetchDates();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'info' }, payload => {
+        fetchInfo();
+      })
+      .subscribe();
+
+    bindStaticHandlers();
+    renderAll();
+  }
+
+  async function fetchDates() {
+    const { data, error } = await supabaseClient.from('dates').select('*').order('id', { ascending: true });
+    if (!error && data) {
+      datesById = {};
+      data.forEach(row => {
+        datesById[row.id] = { id: row.id, data: { season: row.season, label: row.label, time: row.time, signups: row.signups || [], needsReplacement: row.needs_replacement, replacementNote: row.replacement_note, history: row.history || [] } };
+      });
+      renderAll();
+    }
+  }
+
+  async function fetchInfo() {
+    const { data, error } = await supabaseClient.from('info').select('*').eq('id', 'general').single();
+    if (!error && data) {
+      infoData = data;
+    } else {
+      infoData = { text: "" };
+    }
+    renderInfo();
+  }
+
+  function renderAll() {
+    renderInfo();
+    renderBanner();
+    renderMine();
+    renderSeason("winter", "winterList");
+    renderSeason("sommer", "sommerList");
+    renderOverview();
+    renderHistory();
+  }
+
+  function renderInfo() {
+    var el = document.getElementById("infoDisplay");
+    var text = infoData && infoData.text ? infoData.text : "";
+    var html = text ? '<div class="info-text">' + esc(text) + "</div>" : '<div class="info-empty">Noch keine allgemeinen Hinweise hinterlegt.</div>';
+    if (isOwner) {
+      html += '<div class="edit-actions"><button class="btn small" id="infoEditBtn">Bearbeiten</button></div>';
+    }
+    el.innerHTML = html;
+    if (isOwner && document.getElementById("infoEditBtn")) {
+      document.getElementById("infoEditBtn").onclick = function () {
+        document.getElementById("infoEditArea").value = text;
+        document.getElementById("infoEditBackdrop").classList.add("open");
+      };
+    }
+  }
+
+  function renderBanner() {
+    var flagged = sortedDates().filter(function (x) { return x.data.needsReplacement; });
+    var section = document.getElementById("bannerSection");
+    if (!flagged.length) { section.style.display = "none"; return; }
+    section.style.display = "block";
+    var items = flagged.map(function (x) {
+      return '<li>' + esc(longDate(x.id)) + ' — <span class="inline-link" data-open-signup="' + x.id + '">Ich übernehme</span></li>';
+    }).join("");
+    document.getElementById("bannerContent").innerHTML = "⚠ Termine suchen Vertretung:<ul>" + items + "</ul>";
+    document.querySelectorAll("[data-open-signup]").forEach(el => {
+      el.onclick = () => openSignupModal(el.getAttribute("data-open-signup"));
+    });
+  }
+
+  function setupAddForms() {
+    ["winter", "sommer"].forEach(function (season) {
+      var formEl = document.getElementById(season + "AddForm");
+      if (!isOwner) { formEl.innerHTML = ""; return; }
+      formEl.innerHTML =
+        '<button class="btn small" style="margin-top:10px;" id="addBtn_' + season + '">+ Termin hinzufügen</button>' +
+        '<div class="add-form" id="addFields_' + season + '" style="display:none;">' +
+        '<div class="field"><label>Datum</label><input type="date" id="addDate_' + season + '"></div>' +
+        '<div class="field"><label>Von</label><input type="time" id="addFrom_' + season + '" value="11:00"></div>' +
+        '<div class="field"><label>Bis</label><input type="time" id="addTo_' + season + '" value="13:00"></div>' +
+        '<div class="field"><label>Bezeichnung</label><input type="text" id="addLabel_' + season + '" value="Training"></div>' +
+        '<div class="field" style="align-self:end;"><button class="btn primary small" id="addSave_' + season + '">Speichern</button></div>' +
+        "</div>";
+      document.getElementById("addBtn_" + season).onclick = () => document.getElementById("addFields_" + season).style.display = "grid";
+      document.getElementById("addSave_" + season).onclick = () => addDate(season);
+    });
+  }
+
+  function renderSeason(season, listId) {
+    var list = sortedDates().filter(function (x) { return x.data.season === season; });
+    var listEl = document.getElementById(listId);
+    var me = norm(getMyIdentity().name);
+    if (!list.length) {
+      listEl.innerHTML = '<p class="empty-state">Noch keine Termine eingetragen.</p>';
+    } else {
+      listEl.innerHTML = list.map(function (x) { return renderDateRow(x, me); }).join("");
+    }
+    bindDateRowHandlers(listEl);
+  }
+
+  function renderDateRow(x, myNorm) {
+    var d = x.data;
+    var signups = d.signups || [];
+    var slotsHtml = [signups[0], signups[1]].map(function (s, i) {
+      if (s) {
+        var mine = norm(s.name) === myNorm && myNorm;
+        return '<span class="slot filled' + (mine ? " mine" : "") + '" data-slot-click="' + x.id + '|' + i + '">' +
+          esc(s.name) + (s.phone ? ' <span class="phone">· ' + esc(s.phone) + "</span>" : "") + "</span>";
+      }
+      return '<span class="slot empty" data-slot-click="' + x.id + '|' + i + '">+ Eintragen</span>';
+    }).join("");
+    var delBtn = isOwner ? '<button class="admin-del" data-del-date="' + x.id + '">✕</button>' : "";
+    return '<div class="date-row' + (d.needsReplacement ? " flagged" : "") + '">' +
+      '<div class="date-block"><div class="day">' + dayNum(x.id) + '</div><div class="mon">' + esc(monShort(x.id)) + "</div></div>" +
+      '<div class="date-meta"><div class="title-line">' + esc(d.label || "Training") + '</div>' +
+      '<div class="sub-line">' + esc(longDate(x.id)) + (d.time ? " · " + esc(d.time) : "") + '</div>' +
+      '<div class="slots">' + slotsHtml + "</div></div>" + delBtn + "</div>";
+  }
+
+  function bindDateRowHandlers(container) {
+    container.querySelectorAll("[data-slot-click]").forEach(el => {
+      el.onclick = function () {
+        var parts = el.getAttribute("data-slot-click").split("|");
+        var dateId = parts[0], idx = parseInt(parts[1], 10);
+        var entry = (datesById[dateId].data.signups || [])[idx];
+        var me = norm(getMyIdentity().name);
+        if (entry && me && norm(entry.name) === me) {
+          openWithdrawModal(dateId, entry.name);
+        } else if (!entry) {
+          openSignupModal(dateId);
+        } else {
+          toast("Belegt von " + entry.name);
+        }
+      };
+    });
+    container.querySelectorAll("[data-del-date]").forEach(el => {
+      el.onclick = async function () {
+        var id = el.getAttribute("data-del-date");
+        showConfirm("Termin wirklich löschen?", async () => {
+          await supabaseClient.from('dates').delete().eq('id', id);
+          toast("Termin gelöscht.");
+        }, "Löschen");
+      };
+    });
+  }
+
+  function renderMine() {
+    var ident = getMyIdentity();
+    var me = norm(ident.name);
+    var el = document.getElementById("mineContent");
+    if (!me) { el.innerHTML = '<p class="empty-state">Gib oben deinen Namen ein.</p>'; return; }
+    var mine = [];
+    sortedDates().forEach(x => {
+      (x.data.signups || []).forEach(s => { if (norm(s.name) === me) mine.push(x); });
+    });
+    var winter = mine.filter(x => x.data.season === "winter").length;
+    var sommer = mine.filter(x => x.data.season === "sommer").length;
+    el.innerHTML = mine.length ? mine.map(m => '<div class="mine-item"><span>' + esc(longDate(m.id)) + '</span></div>').join("") : '<p class="empty-state">Keine Termine.</p>';
+    el.innerHTML += '<div class="quota-row"><span class="quota-pill ' + (winter >= 1 ? "ok" : "open") + '">Winter ' + winter + '/1</span><span class="quota-pill ' + (sommer >= 2 ? "ok" : "open") + '">Sommer ' + sommer + '/2</span></div>';
+  }
+
+  function renderOverview() {
+    var byName = {};
+    sortedDates().forEach(x => {
+      (x.data.signups || []).forEach(s => {
+        var k = norm(s.name);
+        if (!k) return;
+        if (!byName[k]) byName[k] = { name: s.name, winter: 0, sommer: 0 };
+        byName[k][x.data.season === "winter" ? "winter" : "sommer"]++;
+      });
+    });
+    var rows = Object.values(byName).sort((a,b) => a.name.localeCompare(b.name));
+    var html = "<thead><tr><th>Name</th><th>Winter</th><th>Sommer</th></tr></thead><tbody>";
+    rows.forEach(r => { html += "<tr><td>" + esc(r.name) + "</td><td>" + r.winter + "</td><td>" + r.sommer + "</td></tr>"; });
+    document.getElementById("overviewCard").querySelector(".wrap-scroll").innerHTML = '<table class="overview">' + html + "</tbody></table>";
+  }
+
+  function renderHistory() {
+    var entries = [];
+    sortedDates().forEach(x => { (x.data.history || []).forEach(h => entries.push(h)); });
+    entries.sort((a,b) => b.ts.localeCompare(a.ts));
+    document.getElementById("historyList").innerHTML = entries.length ? entries.map(e => '<div class="history-entry"><span class="ts">' + fmtTs(e.ts) + '</span><span>' + esc(e.text) + '</span></div>').join("") : '<p class="empty-state">Keine Einträge</p>';
+  }
+
+  async function addDate(season) {
+    var dateVal = document.getElementById("addDate_" + season).value;
+    var label = document.getElementById("addLabel_" + season).value;
+    var from = document.getElementById("addFrom_" + season).value;
+    var to = document.getElementById("addTo_" + season).value;
+    if (!dateVal) { toast("Datum angeben"); return; }
+    await supabaseClient.from('dates').insert({
+      id: dateVal, season: season, label: label, time: from + "–" + to + " Uhr", signups: [], history: [{ ts: nowIso(), text: "Termin angelegt" }]
+    });
+    toast("Hinzugefügt");
+  }
+
+  function openSignupModal(dateId) {
+    pendingSignupDateId = dateId;
+    var ident = getMyIdentity();
+    document.getElementById("signupName").value = ident.name;
+    document.getElementById("signupPhone").value = ident.phone;
+    document.getElementById("signupModalBackdrop").classList.add("open");
+  }
+
+  async function confirmSignup() {
+    var name = document.getElementById("signupName").value.trim();
+    var phone = document.getElementById("signupPhone").value.trim();
+    if (!name) return;
+    var row = datesById[pendingSignupDateId];
+    var signups = row.data.signups || [];
+    signups.push({ name, phone, signedUpAt: nowIso() });
+    var history = (row.data.history || []).concat({ ts: nowIso(), text: name + " hat sich eingetragen" });
+    
+    await supabaseClient.from('dates').update({ signups, needs_replacement: false, history }).eq('id', pendingSignupDateId);
+    setMyIdentity(name, phone);
+    document.getElementById("signupModalBackdrop").classList.remove("open");
+    toast("Erfolgreich eingetragen!");
+  }
+
+  function openWithdrawModal(dateId, name) {
+    pendingWithdraw = { dateId, name };
+    document.getElementById("withdrawModalBackdrop").classList.add("open");
+  }
+
+  async function confirmWithdrawPlain() {
+    var row = datesById[pendingWithdraw.dateId];
+    var signups = (row.data.signups || []).filter(s => norm(s.name) !== norm(pendingWithdraw.name));
+    var history = (row.data.history || []).concat({ ts: nowIso(), text: pendingWithdraw.name + " hat sich ausgetragen" });
+    
+    await supabaseClient.from('dates').update({ signups, needs_replacement: true, replacement_note: "zuletzt von " + pendingWithdraw.name, history }).eq('id', pendingWithdraw.dateId);
+    document.getElementById("withdrawModalBackdrop").classList.remove("open");
+    toast("Ausgetragen.");
+  }
+
+  function bindStaticHandlers() {
+    document.getElementById("saveIdentityBtn").onclick = () => {
+      setMyIdentity(document.getElementById("nameInput").value, document.getElementById("phoneInput").value);
+      renderAll();
+      toast("Gespeichert");
+    };
+    document.getElementById("historyToggle").onclick = function() {
+      var el = document.getElementById("historyList");
+      el.style.display = el.style.display === "none" ? "block" : "none";
+    };
+    document.getElementById("signupCancel").onclick = () => document.getElementById("signupModalBackdrop").classList.remove("open");
+    document.getElementById("signupConfirm").onclick = confirmSignup;
+    document.getElementById("withdrawCancel").onclick = () => document.getElementById("withdrawModalBackdrop").classList.remove("open");
+    document.getElementById("withdrawConfirmPlain").onclick = confirmWithdrawPlain;
+    document.getElementById("infoEditCancel").onclick = () => document.getElementById("infoEditBackdrop").classList.remove("open");
+    document.getElementById("infoEditSave").onclick = async () => {
+      var text = document.getElementById("infoEditArea").value;
+      await supabaseClient.from('info').upsert({ id: 'general', text, updated_at: nowIso() });
+      document.getElementById("infoEditBackdrop").classList.remove("open");
+      toast("Infos gespeichert");
+    };
+    document.getElementById("confirmModalCancel").onclick = () => document.getElementById("confirmModalBackdrop").classList.remove("open");
+    document.getElementById("confirmModalOk").onclick = () => {
+      if (confirmCallback) confirmCallback();
+      document.getElementById("confirmModalBackdrop").classList.remove("open");
+    };
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
