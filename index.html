@@ -140,11 +140,15 @@
       <button class="btn primary small" id="saveIdentityBtn">Speichern</button>
       <span id="adminChip"></span>
     </div>
-    <p class="season-note" style="margin-top:8px;">Dein Name wird nur in diesem Browser gespeichert, um deine Termine anzuzeigen.</p>
+    <p class="season-note" style="margin-top:8px;">Dein Name wird in diesem Browser gespeichert. Auf einem anderen Gerät gib denselben Namen ein und klicke auf Speichern, um deine Termine zu sehen.</p>
   </section>
 
   <section class="card" id="infoBox">
     <h2 class="section-title">Allgemeine Infos zum Essen</h2>
+    <div class="edit-actions" role="group" aria-label="Infotext auswählen" style="margin-bottom:12px;">
+      <button class="btn small" id="infoSommerBtn" type="button">Sommer</button>
+      <button class="btn small" id="infoWinterBtn" type="button">Winter</button>
+    </div>
     <div id="infoDisplay"></div>
   </section>
 
@@ -194,6 +198,7 @@
   <div class="modal">
     <h3 id="signupModalTitle">Eintragen</h3>
     <p class="sub" id="signupModalSub"></p>
+    <p class="banner" id="thirdFamilyNotice" style="display:none;" role="note">Du trägst dich als dritte Familie ein. Bitte besetzt zuerst alle anderen Termine dieser Saison mit mindestens zwei Familien.</p>
     <div class="field"><label>Name</label><input id="signupName" type="text" placeholder="Dein Name" /></div>
     <div class="field"><label>Telefon (optional)</label><input id="signupPhone" type="tel" placeholder="Für Rückfragen" /></div>
     <div class="error-msg" id="signupError" style="display:none;"></div>
@@ -257,6 +262,7 @@
 
   let datesById = {};
   let infoData = null;
+  let selectedInfoSeason = null;
   let pendingSignupDateId = null;
   let pendingWithdraw = null;
   let confirmCallback = null;
@@ -372,36 +378,38 @@
     renderOverview();
     renderHistory();
   }
-function seasonalInfoText(text) {
-  var month = Number(new Intl.DateTimeFormat("de-DE", {
-    month: "numeric",
-    timeZone: "Europe/Berlin"
-  }).format(new Date()));
 
-  var season = month === 11 || month === 12 ? "winter" : "sommer";
-  var sections = {};
-  var current = null;
+  function seasonalInfoText(text) {
+    // Keep both sections in Supabase; select the current season for display.
+    var month = Number(new Intl.DateTimeFormat("de-DE", {
+      month: "numeric", timeZone: "Europe/Berlin"
+    }).format(new Date()));
+    var season = selectedInfoSeason || (month === 11 || month === 12 ? "winter" : "sommer");
+    ["sommer", "winter"].forEach(function (value) {
+      var button = document.getElementById(value === "sommer" ? "infoSommerBtn" : "infoWinterBtn");
+      button.setAttribute("aria-pressed", String(value === season));
+      button.classList.toggle("primary", value === season);
+    });
+    var sections = {};
+    var current = null;
+    text.split(/\r?\n/).forEach(function (line) {
+      var heading = line.trim().toLowerCase();
+      if (heading === "sommer" || heading === "winter") {
+        current = heading;
+        sections[current] = [line.trim()];
+      } else if (current) {
+        sections[current].push(line);
+      }
+    });
+    // Plain info texts without seasonal headings continue to display in full.
+    return sections[season] ? sections[season].join("\n").trim() : text;
+  }
 
-  text.split(/\r?\n/).forEach(function (line) {
-    var heading = line.trim().toLowerCase();
-    if (heading === "sommer" || heading === "winter") {
-      current = heading;
-      sections[current] = [line.trim()];
-    } else if (current) {
-      sections[current].push(line);
-    }
-  });
-
-  return sections[season]
-    ? sections[season].join("\n").trim()
-    : text;
-}
   function renderInfo() {
     var el = document.getElementById("infoDisplay");
-   var text = seasonalInfoText(
-  infoData && infoData.text ? infoData.text : ""
-);
-    var html = text ? '<div class="info-text">' + esc(text) + "</div>" : '<div class="info-empty">Noch keine allgemeinen Hinweise hinterlegt.</div>';
+    var text = infoData && infoData.text ? infoData.text : "";
+    var displayText = seasonalInfoText(text);
+    var html = displayText ? '<div class="info-text">' + esc(displayText) + "</div>" : '<div class="info-empty">Noch keine allgemeinen Hinweise hinterlegt.</div>';
     if (isOwner) {
       html += '<div class="edit-actions"><button class="btn small" id="infoEditBtn">Bearbeiten</button></div>';
     }
@@ -461,13 +469,13 @@ function seasonalInfoText(text) {
   function renderDateRow(x, myNorm) {
     var d = x.data;
     var signups = d.signups || [];
-    var slotsHtml = [signups[0], signups[1]].map(function (s, i) {
+    var slotsHtml = [signups[0], signups[1], signups[2]].map(function (s, i) {
       if (s) {
         var mine = norm(s.name) === myNorm && myNorm;
         return '<span class="slot filled' + (mine ? " mine" : "") + '" data-slot-click="' + x.id + '|' + i + '">' +
           esc(s.name) + (s.phone ? ' <span class="phone">· ' + esc(s.phone) + "</span>" : "") + "</span>";
       }
-      return '<span class="slot empty" data-slot-click="' + x.id + '|' + i + '">+ Eintragen</span>';
+      return '<span class="slot empty" data-slot-click="' + x.id + '|' + i + '">' + (i === 2 ? '+ Dritte Familie' : '+ Eintragen') + '</span>';
     }).join("");
     var delBtn = isOwner ? '<button class="admin-del" data-del-date="' + x.id + '">✕</button>' : "";
     return '<div class="date-row' + (d.needsReplacement ? " flagged" : "") + '">' +
@@ -555,7 +563,13 @@ function seasonalInfoText(text) {
   }
 
   function openSignupModal(dateId) {
+    if ((datesById[dateId].data.signups || []).length >= 3) {
+      toast("Dieser Termin ist bereits mit drei Familien besetzt.");
+      return;
+    }
     pendingSignupDateId = dateId;
+    document.getElementById("signupError").style.display = "none";
+    document.getElementById("thirdFamilyNotice").style.display = (datesById[dateId].data.signups || []).length === 2 ? "block" : "none";
     var ident = getMyIdentity();
     document.getElementById("signupName").value = ident.name;
     document.getElementById("signupPhone").value = ident.phone;
@@ -568,12 +582,26 @@ function seasonalInfoText(text) {
     if (!name) return;
     var row = datesById[pendingSignupDateId];
     var signups = row.data.signups || [];
-    signups.push({ name, phone, signedUpAt: nowIso() });
+    if (signups.length >= 3 || signups.some(s => norm(s.name) === norm(name))) {
+      document.getElementById("signupError").textContent = signups.length >= 3 ? "Dieser Termin ist bereits mit drei Familien besetzt." : "Diese Familie ist bereits eingetragen.";
+      document.getElementById("signupError").style.display = "block";
+      return;
+    }
+    signups = signups.concat({ name, phone, signedUpAt: nowIso() });
     var history = (row.data.history || []).concat({ ts: nowIso(), text: name + " hat sich eingetragen" });
     
-    await supabaseClient.from('dates').update({ signups, needs_replacement: false, history }).eq('id', pendingSignupDateId);
+    var { error } = await supabaseClient.from('dates').update({ signups, needs_replacement: false, history }).eq('id', pendingSignupDateId);
+    if (error) {
+      document.getElementById("signupError").textContent = "Eintragen fehlgeschlagen. Bitte versuche es erneut.";
+      document.getElementById("signupError").style.display = "block";
+      return;
+    }
+    row.data.signups = signups;
+    row.data.needsReplacement = false;
+    row.data.history = history;
     setMyIdentity(name, phone);
     document.getElementById("signupModalBackdrop").classList.remove("open");
+    renderAll();
     toast("Erfolgreich eingetragen!");
   }
 
@@ -593,6 +621,8 @@ function seasonalInfoText(text) {
   }
 
   function bindStaticHandlers() {
+    document.getElementById("infoSommerBtn").onclick = () => { selectedInfoSeason = "sommer"; renderInfo(); };
+    document.getElementById("infoWinterBtn").onclick = () => { selectedInfoSeason = "winter"; renderInfo(); };
     document.getElementById("saveIdentityBtn").onclick = () => {
       setMyIdentity(document.getElementById("nameInput").value, document.getElementById("phoneInput").value);
       renderAll();
