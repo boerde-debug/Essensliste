@@ -372,10 +372,35 @@
     renderOverview();
     renderHistory();
   }
+function seasonalInfoText(text) {
+  var month = Number(new Intl.DateTimeFormat("de-DE", {
+    month: "numeric",
+    timeZone: "Europe/Berlin"
+  }).format(new Date()));
 
+  var season = month === 11 || month === 12 ? "winter" : "sommer";
+  var sections = {};
+  var current = null;
+
+  text.split(/\r?\n/).forEach(function (line) {
+    var heading = line.trim().toLowerCase();
+    if (heading === "sommer" || heading === "winter") {
+      current = heading;
+      sections[current] = [line.trim()];
+    } else if (current) {
+      sections[current].push(line);
+    }
+  });
+
+  return sections[season]
+    ? sections[season].join("\n").trim()
+    : text;
+}
   function renderInfo() {
     var el = document.getElementById("infoDisplay");
-    var text = infoData && infoData.text ? infoData.text : "";
+   var text = seasonalInfoText(
+  infoData && infoData.text ? infoData.text : ""
+);
     var html = text ? '<div class="info-text">' + esc(text) + "</div>" : '<div class="info-empty">Noch keine allgemeinen Hinweise hinterlegt.</div>';
     if (isOwner) {
       html += '<div class="edit-actions"><button class="btn small" id="infoEditBtn">Bearbeiten</button></div>';
