@@ -251,6 +251,16 @@
   </div>
 </div>
 
+<!-- Admin: Eintrag einer anderen Person bearbeiten -->
+<div class="modal-backdrop" id="adminSlotBackdrop">
+  <div class="modal">
+    <h3 id="adminSlotTitle">Eintrag verwalten</h3>
+    <p class="sub" id="adminSlotSub"></p>
+    <div class="error-msg" id="adminSlotError" style="display:none;"></div>
+    <div class="actions" id="adminSlotActions" style="flex-wrap:wrap;"></div>
+  </div>
+</div>
+
 <!-- Tausch mit jemand anderem -->
 <div class="modal-backdrop" id="swapBackdrop">
   <div class="modal">
@@ -546,11 +556,14 @@
         var action = norm(s.name) === me
           ? ' — <span class="inline-link" data-open-mine="' + x.id + '">Meine Anfrage ansehen</span>'
           : ' — <span class="inline-link" data-open-swap="' + x.id + '|' + esc(s.name) + '">Ich tausche</span>';
-        items.push('<li>' + esc(longDate(x.id)) + ': <strong>' + esc(s.name) + '</strong> sucht einen Tausch' + note + action + '</li>');
+        var adminAction = isOwner && norm(s.name) !== me
+          ? ' · <span class="inline-link" data-admin-slot="' + x.id + '|' + esc(s.name) + '">Verwalten</span>' : "";
+        items.push('<li>' + esc(longDate(x.id)) + ': <strong>' + esc(s.name) + '</strong> sucht einen Tausch' + note + action + adminAction + '</li>');
       });
       if (legacyOpen(x.data)) {
         var who = x.data.replacementNote ? ' (' + esc(x.data.replacementNote) + ')' : "";
-        items.push('<li>' + esc(longDate(x.id)) + ': freier Platz' + who + ' — <span class="inline-link" data-open-signup="' + x.id + '">Ich übernehme</span></li>');
+        items.push('<li>' + esc(longDate(x.id)) + ': freier Platz' + who + ' — <span class="inline-link" data-open-signup="' + x.id + '">Ich übernehme</span>' +
+          (isOwner ? ' · <span class="inline-link" data-admin-clear-legacy="' + x.id + '">Hinweis löschen</span>' : "") + '</li>');
       }
     });
     document.getElementById("bannerContent").innerHTML = "⇄ Tausch gesucht:<ul>" + items.join("") + "</ul>";
@@ -561,6 +574,24 @@
       el.onclick = () => {
         var p = el.getAttribute("data-open-swap").split("|");
         openSwapModal(p[0], p.slice(1).join("|"));
+      };
+    });
+    document.querySelectorAll("#bannerContent [data-admin-clear-legacy]").forEach(el => {
+      el.onclick = () => {
+        var id = el.getAttribute("data-admin-clear-legacy");
+        showConfirm("Hinweis „freier Platz“ für den " + longDate(id) + " ausblenden?", async () => {
+          try {
+            var row = await fetchRow(id);
+            await saveRow(id, row.data.signups, row.data.history, ["Admin hat den Hinweis „freier Platz“ gelöscht"]);
+            renderAll(); toast("Hinweis gelöscht.");
+          } catch (err) { toast(err.message); }
+        }, "Löschen");
+      };
+    });
+    document.querySelectorAll("#bannerContent [data-admin-slot]").forEach(el => {
+      el.onclick = () => {
+        var p = el.getAttribute("data-admin-slot").split("|");
+        openAdminSlotModal(p[0], p.slice(1).join("|"));
       };
     });
     document.querySelectorAll("#bannerContent [data-open-mine]").forEach(el => {
@@ -628,6 +659,8 @@
         var me = norm(getMyIdentity().name);
         if (entry && me && norm(entry.name) === me) {
           openMySlotModal(dateId);
+        } else if (entry && isOwner) {
+          openAdminSlotModal(dateId, entry.name);
         } else if (!entry) {
           openSignupModal(dateId);
         } else if (entry.swap) {
@@ -825,12 +858,15 @@
   function closeMySlot() { document.getElementById("mySlotBackdrop").classList.remove("open"); }
 
   async function updateMyEntry(dateId, mutate) {
-    // Lädt die Zeile frisch, ändert den eigenen Eintrag über mutate(entry) und speichert.
-    var me = getMyIdentity().name;
+    return updateEntry(dateId, getMyIdentity().name, mutate, "Du bist an diesem Termin nicht (mehr) eingetragen.");
+  }
+
+  async function updateEntry(dateId, name, mutate, notFoundMsg) {
+    // Lädt die Zeile frisch, ändert den Eintrag von "name" über mutate(entry) und speichert.
     var row = await fetchRow(dateId);
     var signups = (row.data.signups || []).slice();
-    var idx = signups.findIndex(s => norm(s.name) === norm(me));
-    if (idx < 0) throw new Error("Du bist an diesem Termin nicht (mehr) eingetragen.");
+    var idx = signups.findIndex(s => norm(s.name) === norm(name));
+    if (idx < 0) throw new Error(notFoundMsg || (name + " ist an diesem Termin nicht (mehr) eingetragen."));
     var res = mutate(Object.assign({}, signups[idx]));
     if (res.remove) signups.splice(idx, 1); else signups[idx] = res.entry;
     await saveRow(dateId, signups, row.data.history, res.history);
@@ -868,6 +904,54 @@
         await updateMyEntry(dateId, e => ({ remove: true, history: [e.name + " hat sich ausgetragen"] }));
         renderAll();
         toast("Ausgetragen.");
+      } catch (err) { toast(err.message); }
+    }, "Austragen");
+  }
+
+  // ===================== Admin: fremde Einträge verwalten =====================
+
+  function openAdminSlotModal(dateId, name) {
+    var row = datesById[dateId];
+    var entry = row && (row.data.signups || []).find(s => norm(s.name) === norm(name));
+    if (!entry) return;
+    showError("adminSlotError", "");
+    document.getElementById("adminSlotTitle").textContent = entry.name + " verwalten";
+    document.getElementById("adminSlotSub").textContent = longDate(dateId) + (row.data.time ? " · " + row.data.time : "") +
+      (entry.swap ? " · sucht Tausch" + (entry.swap.note ? " („" + entry.swap.note + "“)" : "") +
+        ((entry.swap.offers || []).length ? " · " + entry.swap.offers.length + " offene(s) Angebot(e)" : "") : "");
+    var actions = document.getElementById("adminSlotActions");
+    actions.innerHTML = '<button class="btn ghost" id="adminSlotClose">Abbrechen</button>' +
+      '<button class="btn danger" id="adminSlotRemove">Austragen</button>' +
+      (entry.swap ? '<button class="btn" id="adminSlotSwapUser">Selbst tauschen</button>' +
+                    '<button class="btn primary" id="adminSlotClearSwap">Tauschgesuch löschen</button>' : "");
+    document.getElementById("adminSlotClose").onclick = closeAdminSlot;
+    document.getElementById("adminSlotRemove").onclick = () => adminRemove(dateId, entry.name);
+    if (entry.swap) {
+      document.getElementById("adminSlotClearSwap").onclick = () => adminClearSwap(dateId, entry.name);
+      document.getElementById("adminSlotSwapUser").onclick = () => { closeAdminSlot(); openSwapModal(dateId, entry.name); };
+    }
+    document.getElementById("adminSlotBackdrop").classList.add("open");
+  }
+  function closeAdminSlot() { document.getElementById("adminSlotBackdrop").classList.remove("open"); }
+
+  async function adminClearSwap(dateId, name) {
+    try {
+      await updateEntry(dateId, name, e => {
+        delete e.swap;
+        return { entry: e, history: ["Admin hat das Tauschgesuch von " + e.name + " gelöscht"] };
+      });
+      closeAdminSlot(); renderAll();
+      toast("Tauschgesuch von " + name + " gelöscht. " + name + " ist wieder fest eingetragen.");
+    } catch (err) { showError("adminSlotError", err.message); }
+  }
+
+  function adminRemove(dateId, name) {
+    closeAdminSlot();
+    showConfirm(name + " wirklich vom " + longDate(dateId) + " austragen? Der Platz wird dann frei.", async () => {
+      try {
+        await updateEntry(dateId, name, e => ({ remove: true, history: ["Admin hat " + e.name + " ausgetragen"] }));
+        renderAll();
+        toast(name + " wurde ausgetragen.");
       } catch (err) { toast(err.message); }
     }, "Austragen");
   }
