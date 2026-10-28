@@ -1,0 +1,1050 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Essensdienst Opti-Training</title>
+  <!-- Supabase JS Client per CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #e8f6ff;
+      --surface: #ffffff;
+      --surface-2: #ccecff;
+      --ink: #17150f;
+      --ink-dim: #285b78;
+      --accent: #f0b429;
+      --accent-ink: #17150f;
+      --accent-text: #8a6410;
+      --pending: #155e87;
+      --pending-bg: #d5efff;
+      --warn: #b23a4e;
+      --warn-bg: #f7dde1;
+      --ok: #2f6b49;
+      --ok-bg: #dcebe0;
+      --border: rgba(23, 21, 15, 0.14);
+      --shadow: 0 1px 2px rgba(23, 21, 15, 0.06), 0 6px 20px rgba(23, 21, 15, 0.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 64px; }
+    header.top {
+      position: sticky; top: 0; z-index: 20; background: var(--bg);
+      border-bottom: 1px solid var(--border); padding: 14px 16px 12px;
+    }
+    header.top .inner { max-width: 760px; margin: 0 auto; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .brand { display: flex; flex-direction: column; gap: 2px; }
+    .brand .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-text); }
+    .brand h1 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
+    .conn-status { font-size: 12px; color: var(--ink-dim); }
+    section { margin-top: 22px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+    h2.section-title { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 10px; }
+    h3.season-title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; margin: 0 0 10px; }
+    .season-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; }
+    .season-tag.winter { background: var(--ink); color: var(--accent); }
+    .season-tag.sommer { background: var(--accent); color: var(--accent-ink); }
+    .season-note { font-size: 12.5px; color: var(--ink-dim); margin: -4px 0 12px; }
+    .identity-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .identity-row input { flex: 1 1 160px; min-width: 120px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--ink); font-size: 16px; }
+    .btn { appearance: none; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 40px; }
+    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .btn.ghost { background: transparent; }
+    .btn.small { padding: 7px 12px; font-size: 12.5px; min-height: 34px; }
+    .btn.danger { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+    .banner { background: var(--warn-bg); border: 1px solid var(--warn); color: var(--warn); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; }
+    .banner ul { margin: 8px 0 0; padding-left: 18px; font-weight: 500; }
+    .inline-link { color: var(--warn); text-decoration: underline; cursor: pointer; font-weight: 700; }
+    .date-row { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .date-row:last-child { border-bottom: none; }
+    .date-row.flagged { background: var(--warn-bg); margin: 0 -18px; padding: 12px 18px; border-radius: 10px; border-bottom-color: transparent; }
+    .date-block { width: 58px; flex: none; text-align: center; }
+    .date-block .day { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    .date-block .mon { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--ink-dim); letter-spacing: 0.04em; }
+    .date-meta { flex: 1 1 auto; min-width: 0; }
+    .date-meta .title-line { font-weight: 700; font-size: 14.5px; }
+    .date-meta .sub-line { font-size: 12.5px; color: var(--ink-dim); margin-top: 1px; }
+    .slots { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .slot { display: flex; align-items: center; gap: 6px; min-height: 38px; border-radius: 999px; padding: 8px 14px; font-size: 13.5px; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
+    .slot.filled { background: var(--ok-bg); color: var(--ok); }
+    .slot.filled.mine { border-color: var(--ok); }
+    .slot.empty { background: var(--surface-2); color: var(--ink-dim); border-style: dashed; border-color: var(--border); }
+    .slot.empty.third { background: #f1faff; color: #426f89; border-color: #a6d8f3; }
+    .slot.swap { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); border-style: dashed; }
+    .slot .phone { opacity: 0.8; font-weight: 500; }
+    .swap-tag { font-size: 11px; font-weight: 800; letter-spacing: 0.02em; }
+    .status-pill { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); white-space: nowrap; }
+    .offer { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-size: 13px; }
+    .offer .offer-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .mine-block { padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .mine-block .mine-item { border-bottom: none; padding: 0; align-items: center; flex-wrap: wrap; }
+    .mine-block .mine-item > span:first-child { flex: 1 1 180px; }
+    .modal select, .modal textarea { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 10px; color: var(--ink); font-size: 16px; font-family: inherit; }
+    .modal .hint { font-size: 12.5px; color: var(--ink-dim); margin-top: 4px; }
+    .slot-flag-note { font-size: 12px; margin-top: 6px; color: var(--warn); font-weight: 700; }
+    .admin-del { flex: none; background: none; border: none; color: var(--ink-dim); cursor: pointer; font-size: 16px; padding: 4px; }
+    .admin-del:hover { color: var(--warn); }
+    .mine-item { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+    .quota-row { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+    .quota-pill { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); }
+    .quota-pill.ok { background: var(--ok-bg); color: var(--ok); }
+    .quota-pill.open { background: var(--pending-bg); color: var(--pending); }
+    table.overview { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.overview th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-dim); padding: 4px 6px; border-bottom: 1px solid var(--border); }
+    table.overview td { padding: 7px 6px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+    .wrap-scroll { overflow-x: auto; }
+    .info-text { white-space: pre-wrap; font-size: 14px; color: var(--ink); }
+    .info-empty { color: var(--ink-dim); font-style: italic; }
+    textarea.info-edit { width: 100%; min-height: 90px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--ink); font-family: inherit; font-size: 16px; resize: vertical; }
+    .edit-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .add-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
+    .add-form input, .add-form select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; color: var(--ink); font-size: 16px; width: 100%; }
+    .add-form label { font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 3px; }
+    .history-toggle { font-size: 13px; font-weight: 700; color: var(--accent-text); background: none; border: none; cursor: pointer; padding: 0; }
+    .history-list { margin-top: 12px; max-height: 320px; overflow-y: auto; }
+    .history-entry { display: flex; gap: 10px; font-size: 12.5px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .history-entry .ts { flex: none; width: 118px; color: var(--ink-dim); font-family: monospace; font-size: 11.5px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-dim); margin-top: 10px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+    .dot.ok { background: var(--ok); }
+    .dot.empty { background: var(--ink-dim); }
+    .dot.warn { background: var(--warn); }
+    .admin-chip { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 3px 9px; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(13, 31, 48, 0.55); display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: var(--surface); border-radius: 14px; padding: 20px; max-width: 420px; width: 100%; box-shadow: var(--shadow); max-height: 86vh; overflow-y: auto; }
+    .modal h3 { margin: 0 0 4px; font-size: 16px; }
+    .modal .sub { font-size: 12.5px; color: var(--ink-dim); margin-bottom: 14px; }
+    .modal .field { margin-bottom: 10px; }
+    .modal label { font-size: 11px; color: var(--ink-dim); text-transform: uppercase; display: block; margin-bottom: 4px; }
+    .modal input { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 10px; color: var(--ink); font-size: 16px; }
+    .modal .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .error-msg { color: var(--warn); font-size: 12.5px; margin-top: 6px; }
+    .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 60; box-shadow: var(--shadow); text-align: center; }
+    .footer-note { text-align: center; font-size: 12px; color: var(--ink-dim); margin-top: 30px; }
+    .muted { color: var(--ink-dim); }
+    .empty-state { font-size: 13.5px; color: var(--ink-dim); padding: 6px 0; }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="inner">
+      <div class="brand">
+        <span class="eyebrow">Opti-Training</span>
+        <h1>Essensdienst</h1>
+      </div>
+      <div id="connStatus" class="conn-status">Verbinde mit Supabase…</div>
+    </div>
+  </header>
+
+  <section class="card" id="identityCard">
+    <h2 class="section-title">Wer bist du?</h2>
+    <div class="identity-row">
+      <input id="nameInput" type="text" placeholder="Dein Name" autocomplete="name" />
+      <input id="phoneInput" type="tel" placeholder="Telefon (optional)" autocomplete="tel" />
+      <button class="btn primary small" id="saveIdentityBtn">Speichern</button>
+      <span id="adminChip"></span>
+    </div>
+    <p class="season-note" style="margin-top:8px;">Dein Name wird in diesem Browser gespeichert. Auf einem anderen Gerät gib denselben Namen ein und klicke auf Speichern, um deine Termine zu sehen.</p>
+  </section>
+
+  <section class="card" id="infoBox">
+    <h2 class="section-title">Allgemeine Infos zum Essen</h2>
+    <div class="edit-actions" role="group" aria-label="Infotext auswählen" style="margin-bottom:12px;">
+      <button class="btn small" id="infoSommerBtn" type="button">Sommer</button>
+      <button class="btn small" id="infoWinterBtn" type="button">Winter</button>
+    </div>
+    <div id="infoDisplay"></div>
+  </section>
+
+  <section id="bannerSection" style="display:none;">
+    <div class="banner" id="bannerContent"></div>
+  </section>
+
+  <section class="card" id="mineCard">
+    <h2 class="section-title">Meine Termine</h2>
+    <div id="mineContent"><p class="empty-state">Gib oben deinen Namen ein, um deine Termine zu sehen.</p></div>
+  </section>
+
+  <section class="card" id="winterSection">
+    <h3 class="season-title"><span class="season-tag winter">Winter</span> Wintertraining</h3>
+    <p class="season-note">November &amp; Dezember — jede Familie übernimmt mindestens <strong>1 Termin</strong>.</p>
+    <div id="winterList"></div>
+    <div id="winterAddForm"></div>
+  </section>
+
+  <section class="card" id="sommerSection">
+    <h3 class="season-title"><span class="season-tag sommer">Sommer</span> Sommertraining</h3>
+    <p class="season-note">April bis Oktober — jede Familie übernimmt mindestens <strong>2 Termine</strong>.</p>
+    <div id="sommerList"></div>
+    <div id="sommerAddForm"></div>
+  </section>
+
+  <section class="card" id="overviewCard">
+    <h2 class="section-title">Alle Eltern im Überblick</h2>
+    <div class="wrap-scroll"><table class="overview" id="overviewTable"></table></div>
+    <div class="legend">
+      <span><span class="dot ok"></span> Termin übernommen</span>
+      <span><span class="dot empty"></span> noch offen</span>
+      <span><span class="dot warn"></span> Tausch gesucht</span>
+    </div>
+  </section>
+
+  <section class="card" id="historyCard">
+    <button class="history-toggle" id="historyToggle">Änderungsprotokoll anzeigen ▾</button>
+    <div class="history-list" id="historyList" style="display:none;"></div>
+  </section>
+
+  <p class="footer-note">Essensdienst-Tool · Powered by Supabase</p>
+</div>
+
+<!-- Modals -->
+<div class="modal-backdrop" id="signupModalBackdrop">
+  <div class="modal">
+    <h3 id="signupModalTitle">Eintragen</h3>
+    <p class="sub" id="signupModalSub"></p>
+    <p class="banner" id="thirdFamilyNotice" style="display:none;" role="note">Du trägst dich als dritte Familie ein. Bitte besetzt zuerst alle anderen Termine dieser Saison mit mindestens zwei Familien.</p>
+    <div class="field"><label>Name</label><input id="signupName" type="text" placeholder="Dein Name" /></div>
+    <div class="field"><label>Telefon (optional)</label><input id="signupPhone" type="tel" placeholder="Für Rückfragen" /></div>
+    <div class="error-msg" id="signupError" style="display:none;"></div>
+    <div class="actions">
+      <button class="btn ghost" id="signupCancel">Abbrechen</button>
+      <button class="btn primary" id="signupConfirm">Eintragen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Eigener Termin: Tausch anfragen / Angebote / Austragen -->
+<div class="modal-backdrop" id="mySlotBackdrop">
+  <div class="modal">
+    <h3>Mein Termin</h3>
+    <p class="sub" id="mySlotSub"></p>
+    <div id="mySlotBody"></div>
+    <div class="error-msg" id="mySlotError" style="display:none;"></div>
+    <div class="actions" id="mySlotActions"></div>
+  </div>
+</div>
+
+<!-- Tausch mit jemand anderem -->
+<div class="modal-backdrop" id="swapBackdrop">
+  <div class="modal">
+    <h3 id="swapTitle">Tauschen</h3>
+    <p class="sub" id="swapSub"></p>
+    <div class="field"><label>Dein Name</label><input id="swapName" type="text" placeholder="Dein Name" /></div>
+    <div class="field"><label>Telefon (optional)</label><input id="swapPhone" type="tel" placeholder="Für Rückfragen" /></div>
+    <div class="field">
+      <label id="swapSelectLabel">Im Gegenzug</label>
+      <select id="swapCounter"></select>
+      <div class="hint" id="swapHint"></div>
+    </div>
+    <div class="error-msg" id="swapError" style="display:none;"></div>
+    <div class="actions">
+      <button class="btn ghost" id="swapCancel">Abbrechen</button>
+      <button class="btn primary" id="swapConfirm">Tausch anbieten</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="infoEditBackdrop">
+  <div class="modal">
+    <h3>Infos bearbeiten</h3>
+    <textarea class="info-edit" id="infoEditArea"></textarea>
+    <div class="actions">
+      <button class="btn ghost" id="infoEditCancel">Abbrechen</button>
+      <button class="btn primary" id="infoEditSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="confirmModalBackdrop">
+  <div class="modal">
+    <h3 id="confirmModalTitle">Bitte bestätigen</h3>
+    <p class="sub" id="confirmModalText"></p>
+    <div class="actions">
+      <button class="btn ghost" id="confirmModalCancel">Abbrechen</button>
+      <button class="btn danger" id="confirmModalOk">Bestätigen</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // --- SUPABASE CONFIGURATION ---
+  const SUPABASE_URL = "https://kzuyhxgdarwsfyixrijs.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_Ls1UBu9MAfkXUSxhpiogQA_HRzTi9vI";
+
+  let supabaseClient = null;
+  try {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    document.getElementById("connStatus").textContent = "Supabase-Initialisierung fehlgeschlagen.";
+  }
+
+  let datesById = {};
+  let infoData = null;
+  let selectedInfoSeason = null;
+  let pendingSignupDateId = null;
+  let pendingMySlot = null;   // { dateId }
+  let pendingSwap = null;     // { dateId, requester }
+  let confirmCallback = null;
+  
+  const urlParams = new URLSearchParams(window.location.search);
+  const isOwner = urlParams.get("admin") === "1";
+  document.getElementById("adminChip").innerHTML = isOwner ? '<span class="admin-chip">Admin</span>' : "";
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function norm(name) { return String(name || "").trim().toLowerCase(); }
+  function nowIso() { return new Date().toISOString(); }
+  function fmtTs(iso) {
+    try {
+      var d = new Date(iso);
+      return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }) + " " +
+        d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    } catch (e) { return ""; }
+  }
+  function dayNum(dateStr) { return parseInt(dateStr.split("-")[2], 10); }
+  function monShort(dateStr) { return new Date(dateStr + "T00:00:00").toLocaleDateString("de-DE", { month: "short" }).replace(".", ""); }
+  function weekdayShort(dateStr) { return new Date(dateStr + "T00:00:00").toLocaleDateString("de-DE", { weekday: "short" }); }
+  function longDate(dateStr) { return new Date(dateStr + "T00:00:00").toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" }); }
+  
+  function toast(msg) {
+    var host = document.getElementById("toastHost");
+    var el = document.createElement("div");
+    el.className = "toast";
+    el.textContent = msg;
+    host.innerHTML = "";
+    host.appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4200);
+  }
+
+  function showConfirm(message, onYes, okLabel) {
+    document.getElementById("confirmModalText").textContent = message;
+    document.getElementById("confirmModalOk").textContent = okLabel || "Bestätigen";
+    confirmCallback = onYes;
+    document.getElementById("confirmModalBackdrop").classList.add("open");
+  }
+
+  function getMyIdentity() {
+    return {
+      name: localStorage.getItem("essensdienst_name") || "",
+      phone: localStorage.getItem("essensdienst_phone") || ""
+    };
+  }
+  function setMyIdentity(name, phone) {
+    localStorage.setItem("essensdienst_name", name || "");
+    localStorage.setItem("essensdienst_phone", phone || "");
+  }
+  function sortedDates() {
+    return Object.keys(datesById).map(function (k) { return datesById[k]; })
+      .sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+  }
+
+  async function init() {
+    if (!supabaseClient) return;
+    document.getElementById("connStatus").textContent = "Verbunden";
+    setupAddForms();
+
+    var ident = getMyIdentity();
+    document.getElementById("nameInput").value = ident.name;
+    document.getElementById("phoneInput").value = ident.phone;
+
+    await fetchDates();
+    await fetchInfo();
+
+    supabaseClient
+      .channel('public-db')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dates' }, payload => {
+        fetchDates();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'info' }, payload => {
+        fetchInfo();
+      })
+      .subscribe();
+
+    bindStaticHandlers();
+    renderAll();
+  }
+
+  function mapRow(row) {
+    return { id: row.id, data: { season: row.season, label: row.label, time: row.time, signups: row.signups || [], needsReplacement: row.needs_replacement, replacementNote: row.replacement_note, history: row.history || [] } };
+  }
+
+  async function fetchDates() {
+    const { data, error } = await supabaseClient.from('dates').select('*').order('id', { ascending: true });
+    if (!error && data) {
+      datesById = {};
+      data.forEach(row => { datesById[row.id] = mapRow(row); });
+      renderAll();
+    }
+  }
+
+  // Frischen Stand einer Zeile holen, damit parallele Änderungen nicht überschrieben werden.
+  async function fetchRow(id) {
+    const { data, error } = await supabaseClient.from('dates').select('*').eq('id', id).single();
+    if (error || !data) throw new Error("Termin konnte nicht geladen werden.");
+    return mapRow(data);
+  }
+
+  // --- Tausch-Hilfen ---
+  // Eine Tauschanfrage hängt am Eintrag der Person: signup.swap = { requestedAt, note, offers: [{ ts, name, phone, dateId }] }
+  function swapRequesters(signups) {
+    return (signups || []).filter(s => s && s.swap);
+  }
+  function legacyOpen(d) {
+    // Alte "Vertretung gesucht"-Markierung (aus der früheren Version), solange noch ein Platz frei ist.
+    return d.needsReplacement && !swapRequesters(d.signups).length && (d.signups || []).length < 3;
+  }
+  function rowFlagged(d) {
+    return swapRequesters(d.signups).length > 0 || legacyOpen(d);
+  }
+  function flagFields(signups) {
+    var req = swapRequesters(signups);
+    return {
+      needs_replacement: req.length > 0,
+      // Nie null schreiben: die Spalte darf in Supabase nicht leer (NULL) sein.
+      replacement_note: req.length ? "Tausch gesucht von " + req.map(s => s.name).join(", ") : ""
+    };
+  }
+  async function saveRow(id, signups, history, newHistoryTexts) {
+    var ts = nowIso();
+    var fullHistory = (history || []).concat(newHistoryTexts.map(t => ({ ts: ts, text: t })));
+    var payload = Object.assign({ signups: signups, history: fullHistory }, flagFields(signups));
+    var { error } = await supabaseClient.from('dates').update(payload).eq('id', id);
+    if (error) {
+      console.error("Supabase-Fehler beim Speichern:", error);
+      throw new Error("Speichern fehlgeschlagen" + (error.message ? " (" + error.message + ")" : "") + ". Bitte versuche es erneut.");
+    }
+    if (datesById[id]) {
+      datesById[id].data.signups = signups;
+      datesById[id].data.history = fullHistory;
+      datesById[id].data.needsReplacement = payload.needs_replacement;
+      datesById[id].data.replacementNote = payload.replacement_note;
+    }
+  }
+  function shortDate(id) {
+    return weekdayShort(id) + ", " + new Date(id + "T00:00:00").toLocaleDateString("de-DE", { day: "numeric", month: "short" });
+  }
+  function myDatesFor(name, excludeId, excludeName) {
+    // Termine, auf denen "name" eingetragen ist und die "excludeName" noch nicht hat.
+    var me = norm(name);
+    if (!me) return [];
+    var today = new Date().toISOString().slice(0, 10);
+    return sortedDates().filter(x => {
+      if (x.id === excludeId || x.id < today) return false;
+      var s = x.data.signups || [];
+      return s.some(e => norm(e.name) === me) && !s.some(e => norm(e.name) === norm(excludeName));
+    });
+  }
+
+  async function fetchInfo() {
+    const { data, error } = await supabaseClient.from('info').select('*').eq('id', 'general').single();
+    if (!error && data) {
+      infoData = data;
+    } else {
+      infoData = { text: "" };
+    }
+    renderInfo();
+  }
+
+  function renderAll() {
+    renderInfo();
+    renderBanner();
+    renderMine();
+    renderSeason("winter", "winterList");
+    renderSeason("sommer", "sommerList");
+    renderOverview();
+    renderHistory();
+  }
+
+  function seasonalInfoText(text) {
+    // Keep both sections in Supabase; select the current season for display.
+    var month = Number(new Intl.DateTimeFormat("de-DE", {
+      month: "numeric", timeZone: "Europe/Berlin"
+    }).format(new Date()));
+    var season = selectedInfoSeason || (month === 11 || month === 12 ? "winter" : "sommer");
+    ["sommer", "winter"].forEach(function (value) {
+      var button = document.getElementById(value === "sommer" ? "infoSommerBtn" : "infoWinterBtn");
+      button.setAttribute("aria-pressed", String(value === season));
+      button.classList.toggle("primary", value === season);
+    });
+    var sections = {};
+    var current = null;
+    text.split(/\r?\n/).forEach(function (line) {
+      var heading = line.trim().toLowerCase();
+      if (heading === "sommer" || heading === "winter") {
+        current = heading;
+        sections[current] = [line.trim()];
+      } else if (current) {
+        sections[current].push(line);
+      }
+    });
+    // Plain info texts without seasonal headings continue to display in full.
+    return sections[season] ? sections[season].join("\n").trim() : text;
+  }
+
+  function renderInfo() {
+    var el = document.getElementById("infoDisplay");
+    var text = infoData && infoData.text ? infoData.text : "";
+    var displayText = seasonalInfoText(text);
+    var html = displayText ? '<div class="info-text">' + esc(displayText) + "</div>" : '<div class="info-empty">Noch keine allgemeinen Hinweise hinterlegt.</div>';
+    if (isOwner) {
+      html += '<div class="edit-actions"><button class="btn small" id="infoEditBtn">Bearbeiten</button></div>';
+    }
+    el.innerHTML = html;
+    if (isOwner && document.getElementById("infoEditBtn")) {
+      document.getElementById("infoEditBtn").onclick = function () {
+        document.getElementById("infoEditArea").value = text;
+        document.getElementById("infoEditBackdrop").classList.add("open");
+      };
+    }
+  }
+
+  function renderBanner() {
+    var today = new Date().toISOString().slice(0, 10);
+    var flagged = sortedDates().filter(function (x) { return x.id >= today && rowFlagged(x.data); });
+    var section = document.getElementById("bannerSection");
+    if (!flagged.length) { section.style.display = "none"; return; }
+    section.style.display = "block";
+    var me = norm(getMyIdentity().name);
+    var items = [];
+    flagged.forEach(function (x) {
+      swapRequesters(x.data.signups).forEach(function (s) {
+        var note = s.swap.note ? ' <span class="muted">(„' + esc(s.swap.note) + '“)</span>' : "";
+        var action = norm(s.name) === me
+          ? ' — <span class="inline-link" data-open-mine="' + x.id + '">Meine Anfrage ansehen</span>'
+          : ' — <span class="inline-link" data-open-swap="' + x.id + '|' + esc(s.name) + '">Ich tausche</span>';
+        items.push('<li>' + esc(longDate(x.id)) + ': <strong>' + esc(s.name) + '</strong> sucht einen Tausch' + note + action + '</li>');
+      });
+      if (legacyOpen(x.data)) {
+        var who = x.data.replacementNote ? ' (' + esc(x.data.replacementNote) + ')' : "";
+        items.push('<li>' + esc(longDate(x.id)) + ': freier Platz' + who + ' — <span class="inline-link" data-open-signup="' + x.id + '">Ich übernehme</span></li>');
+      }
+    });
+    document.getElementById("bannerContent").innerHTML = "⇄ Tausch gesucht:<ul>" + items.join("") + "</ul>";
+    document.querySelectorAll("#bannerContent [data-open-signup]").forEach(el => {
+      el.onclick = () => openSignupModal(el.getAttribute("data-open-signup"));
+    });
+    document.querySelectorAll("#bannerContent [data-open-swap]").forEach(el => {
+      el.onclick = () => {
+        var p = el.getAttribute("data-open-swap").split("|");
+        openSwapModal(p[0], p.slice(1).join("|"));
+      };
+    });
+    document.querySelectorAll("#bannerContent [data-open-mine]").forEach(el => {
+      el.onclick = () => openMySlotModal(el.getAttribute("data-open-mine"));
+    });
+  }
+
+  function setupAddForms() {
+    ["winter", "sommer"].forEach(function (season) {
+      var formEl = document.getElementById(season + "AddForm");
+      if (!isOwner) { formEl.innerHTML = ""; return; }
+      formEl.innerHTML =
+        '<button class="btn small" style="margin-top:10px;" id="addBtn_' + season + '">+ Termin hinzufügen</button>' +
+        '<div class="add-form" id="addFields_' + season + '" style="display:none;">' +
+        '<div class="field"><label>Datum</label><input type="date" id="addDate_' + season + '"></div>' +
+        '<div class="field"><label>Von</label><input type="time" id="addFrom_' + season + '" value="11:00"></div>' +
+        '<div class="field"><label>Bis</label><input type="time" id="addTo_' + season + '" value="13:00"></div>' +
+        '<div class="field"><label>Bezeichnung</label><input type="text" id="addLabel_' + season + '" value="Training"></div>' +
+        '<div class="field" style="align-self:end;"><button class="btn primary small" id="addSave_' + season + '">Speichern</button></div>' +
+        "</div>";
+      document.getElementById("addBtn_" + season).onclick = () => document.getElementById("addFields_" + season).style.display = "grid";
+      document.getElementById("addSave_" + season).onclick = () => addDate(season);
+    });
+  }
+
+  function renderSeason(season, listId) {
+    var list = sortedDates().filter(function (x) { return x.data.season === season; });
+    var listEl = document.getElementById(listId);
+    var me = norm(getMyIdentity().name);
+    if (!list.length) {
+      listEl.innerHTML = '<p class="empty-state">Noch keine Termine eingetragen.</p>';
+    } else {
+      listEl.innerHTML = list.map(function (x) { return renderDateRow(x, me); }).join("");
+    }
+    bindDateRowHandlers(listEl);
+  }
+
+  function renderDateRow(x, myNorm) {
+    var d = x.data;
+    var signups = d.signups || [];
+    var slotsHtml = [signups[0], signups[1], signups[2]].map(function (s, i) {
+      if (s) {
+        var mine = norm(s.name) === myNorm && myNorm;
+        var swapTag = s.swap ? ' <span class="swap-tag">⇄ sucht Tausch</span>' : "";
+        return '<span class="slot ' + (s.swap ? "swap" : "filled") + (mine ? " mine" : "") + '" data-slot-click="' + x.id + '|' + i + '"' +
+          (s.swap ? ' title="' + esc(s.name) + ' kann an diesem Termin nicht und sucht einen Tausch"' : "") + '>' +
+          esc(s.name) + (s.phone ? ' <span class="phone">· ' + esc(s.phone) + "</span>" : "") + swapTag + "</span>";
+      }
+      return '<span class="slot empty' + (i === 2 ? ' third' : '') + '" data-slot-click="' + x.id + '|' + i + '">+ Eintragen</span>';
+    }).join("");
+    var delBtn = isOwner ? '<button class="admin-del" data-del-date="' + x.id + '">✕</button>' : "";
+    return '<div class="date-row' + (rowFlagged(d) ? " flagged" : "") + '">' +
+      '<div class="date-block"><div class="day">' + dayNum(x.id) + '</div><div class="mon">' + esc(monShort(x.id)) + "</div></div>" +
+      '<div class="date-meta"><div class="title-line">' + esc(d.label || "Training") + '</div>' +
+      '<div class="sub-line">' + esc(longDate(x.id)) + (d.time ? " · " + esc(d.time) : "") + '</div>' +
+      '<div class="slots">' + slotsHtml + "</div></div>" + delBtn + "</div>";
+  }
+
+  function bindDateRowHandlers(container) {
+    container.querySelectorAll("[data-slot-click]").forEach(el => {
+      el.onclick = function () {
+        var parts = el.getAttribute("data-slot-click").split("|");
+        var dateId = parts[0], idx = parseInt(parts[1], 10);
+        var entry = (datesById[dateId].data.signups || [])[idx];
+        var me = norm(getMyIdentity().name);
+        if (entry && me && norm(entry.name) === me) {
+          openMySlotModal(dateId);
+        } else if (!entry) {
+          openSignupModal(dateId);
+        } else if (entry.swap) {
+          openSwapModal(dateId, entry.name);
+        } else {
+          toast("Belegt von " + entry.name);
+        }
+      };
+    });
+    container.querySelectorAll("[data-del-date]").forEach(el => {
+      el.onclick = async function () {
+        var id = el.getAttribute("data-del-date");
+        showConfirm("Termin wirklich löschen?", async () => {
+          await supabaseClient.from('dates').delete().eq('id', id);
+          toast("Termin gelöscht.");
+        }, "Löschen");
+      };
+    });
+  }
+
+  function renderMine() {
+    var ident = getMyIdentity();
+    var me = norm(ident.name);
+    var el = document.getElementById("mineContent");
+    if (!me) { el.innerHTML = '<p class="empty-state">Gib oben deinen Namen ein.</p>'; return; }
+    var mine = [];
+    sortedDates().forEach(x => {
+      (x.data.signups || []).forEach(s => { if (norm(s.name) === me) mine.push({ x: x, entry: s }); });
+    });
+    var winter = mine.filter(m => m.x.data.season === "winter").length;
+    var sommer = mine.filter(m => m.x.data.season === "sommer").length;
+    el.innerHTML = mine.length ? mine.map(m => {
+      var status = "";
+      if (m.entry.swap) {
+        var n = (m.entry.swap.offers || []).length;
+        status = '<span class="status-pill">⇄ Tausch gesucht' + (n ? " · " + n + (n === 1 ? " Angebot" : " Angebote") : "") + '</span>';
+      }
+      return '<div class="mine-block"><div class="mine-item"><span>' + esc(longDate(m.x.id)) + (m.x.data.time ? ' <span class="muted">· ' + esc(m.x.data.time) + '</span>' : "") + '</span>' +
+        '<span style="display:flex;gap:8px;align-items:center;">' + status + '<button class="btn small" data-open-mine="' + m.x.id + '">' + (m.entry.swap ? "Verwalten" : "Tauschen") + '</button></span></div>' +
+        (m.entry.swap ? offersHtml(m.x.id, m.entry) : "") + '</div>';
+    }).join("") : '<p class="empty-state">Keine Termine.</p>';
+    el.innerHTML += '<div class="quota-row"><span class="quota-pill ' + (winter >= 1 ? "ok" : "open") + '">Winter ' + winter + '/1</span><span class="quota-pill ' + (sommer >= 2 ? "ok" : "open") + '">Sommer ' + sommer + '/2</span></div>';
+    el.querySelectorAll("[data-open-mine]").forEach(b => { b.onclick = () => openMySlotModal(b.getAttribute("data-open-mine")); });
+    bindOfferButtons(el);
+  }
+
+  function offersHtml(dateId, entry) {
+    var offers = (entry.swap && entry.swap.offers) || [];
+    if (!offers.length) return '<p class="hint muted" style="font-size:12.5px;margin:6px 0 0;">Noch kein Tauschangebot. Andere sehen deine Anfrage oben in der Liste.</p>';
+    return offers.map(o => {
+      var other = o.dateId && datesById[o.dateId];
+      var what = other
+        ? '<strong>' + esc(o.name) + '</strong> übernimmt deinen Termin und du übernimmst dafür <strong>' + esc(longDate(o.dateId)) + '</strong>' + (other.data.time ? ' (' + esc(other.data.time) + ')' : "") + '.'
+        : '<strong>' + esc(o.name) + '</strong> möchte tauschen (der Gegentermin existiert nicht mehr).';
+      return '<div class="offer">' + what + (o.phone ? ' <span class="muted">Tel. ' + esc(o.phone) + '</span>' : "") +
+        '<div class="offer-actions">' +
+        (other ? '<button class="btn primary small" data-accept-offer="' + dateId + '|' + esc(o.ts) + '">Tausch annehmen</button>' : "") +
+        '<button class="btn small" data-decline-offer="' + dateId + '|' + esc(o.ts) + '">Ablehnen</button></div></div>';
+    }).join("");
+  }
+
+  function bindOfferButtons(container) {
+    container.querySelectorAll("[data-accept-offer]").forEach(b => {
+      b.onclick = () => { var p = b.getAttribute("data-accept-offer").split("|"); acceptOffer(p[0], p[1], b); };
+    });
+    container.querySelectorAll("[data-decline-offer]").forEach(b => {
+      b.onclick = () => { var p = b.getAttribute("data-decline-offer").split("|"); declineOffer(p[0], p[1], b); };
+    });
+  }
+
+  function renderOverview() {
+    var byName = {};
+    sortedDates().forEach(x => {
+      (x.data.signups || []).forEach(s => {
+        var k = norm(s.name);
+        if (!k) return;
+        if (!byName[k]) byName[k] = { name: s.name, winter: 0, sommer: 0, swaps: [] };
+        byName[k][x.data.season === "winter" ? "winter" : "sommer"]++;
+        if (s.swap) byName[k].swaps.push(shortDate(x.id));
+      });
+    });
+    var rows = Object.values(byName).sort((a,b) => a.name.localeCompare(b.name));
+    var html = "<thead><tr><th>Name</th><th>Winter</th><th>Sommer</th><th>Tausch gesucht</th></tr></thead><tbody>";
+    rows.forEach(r => { html += "<tr><td>" + esc(r.name) + "</td><td>" + r.winter + "</td><td>" + r.sommer + "</td><td>" + (r.swaps.length ? '<span style="color:var(--warn);font-weight:700;">' + esc(r.swaps.join(", ")) + "</span>" : '<span class="muted">–</span>') + "</td></tr>"; });
+    document.getElementById("overviewCard").querySelector(".wrap-scroll").innerHTML = '<table class="overview">' + html + "</tbody></table>";
+  }
+
+  function renderHistory() {
+    var entries = [];
+    sortedDates().forEach(x => { (x.data.history || []).forEach(h => entries.push(h)); });
+    entries.sort((a,b) => b.ts.localeCompare(a.ts));
+    document.getElementById("historyList").innerHTML = entries.length ? entries.map(e => '<div class="history-entry"><span class="ts">' + fmtTs(e.ts) + '</span><span>' + esc(e.text) + '</span></div>').join("") : '<p class="empty-state">Keine Einträge</p>';
+  }
+
+  async function addDate(season) {
+    var dateVal = document.getElementById("addDate_" + season).value;
+    var label = document.getElementById("addLabel_" + season).value;
+    var from = document.getElementById("addFrom_" + season).value;
+    var to = document.getElementById("addTo_" + season).value;
+    if (!dateVal) { toast("Datum angeben"); return; }
+    await supabaseClient.from('dates').insert({
+      id: dateVal, season: season, label: label, time: from + "–" + to + " Uhr", signups: [], history: [{ ts: nowIso(), text: "Termin angelegt" }]
+    });
+    toast("Hinzugefügt");
+  }
+
+  function openSignupModal(dateId) {
+    if ((datesById[dateId].data.signups || []).length >= 3) {
+      toast("Dieser Termin ist bereits mit drei Familien besetzt.");
+      return;
+    }
+    pendingSignupDateId = dateId;
+    document.getElementById("signupError").style.display = "none";
+    document.getElementById("thirdFamilyNotice").style.display = (datesById[dateId].data.signups || []).length === 2 ? "block" : "none";
+    var ident = getMyIdentity();
+    document.getElementById("signupName").value = ident.name;
+    document.getElementById("signupPhone").value = ident.phone;
+    document.getElementById("signupModalBackdrop").classList.add("open");
+  }
+
+  async function confirmSignup() {
+    var name = document.getElementById("signupName").value.trim();
+    var phone = document.getElementById("signupPhone").value.trim();
+    if (!name) return;
+    var row = datesById[pendingSignupDateId];
+    var signups = row.data.signups || [];
+    if (signups.length >= 3 || signups.some(s => norm(s.name) === norm(name))) {
+      document.getElementById("signupError").textContent = signups.length >= 3 ? "Dieser Termin ist bereits mit drei Familien besetzt." : "Diese Familie ist bereits eingetragen.";
+      document.getElementById("signupError").style.display = "block";
+      return;
+    }
+    signups = signups.concat({ name, phone, signedUpAt: nowIso() });
+    var history = (row.data.history || []).concat({ ts: nowIso(), text: name + " hat sich eingetragen" });
+    
+    var { error } = await supabaseClient.from('dates').update(Object.assign({ signups, history }, flagFields(signups))).eq('id', pendingSignupDateId);
+    if (error) {
+      console.error("Supabase-Fehler beim Eintragen:", error);
+      document.getElementById("signupError").textContent = "Eintragen fehlgeschlagen" + (error.message ? " (" + error.message + ")" : "") + ". Bitte versuche es erneut.";
+      document.getElementById("signupError").style.display = "block";
+      return;
+    }
+    row.data.signups = signups;
+    row.data.needsReplacement = flagFields(signups).needs_replacement;
+    row.data.history = history;
+    setMyIdentity(name, phone);
+    document.getElementById("signupModalBackdrop").classList.remove("open");
+    renderAll();
+    toast("Erfolgreich eingetragen!");
+  }
+
+  // ===================== Tausch: eigener Termin =====================
+
+  function showError(id, msg) {
+    var el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
+
+  function openMySlotModal(dateId) {
+    var me = norm(getMyIdentity().name);
+    var row = datesById[dateId];
+    if (!row || !me) return;
+    var entry = (row.data.signups || []).find(s => norm(s.name) === me);
+    if (!entry) { toast("Du bist an diesem Termin nicht eingetragen."); return; }
+    pendingMySlot = { dateId: dateId };
+    showError("mySlotError", "");
+    document.getElementById("mySlotSub").textContent = longDate(dateId) + (row.data.time ? " · " + row.data.time : "") + " · eingetragen als " + entry.name;
+    var body = document.getElementById("mySlotBody");
+    var actions = document.getElementById("mySlotActions");
+    if (!entry.swap) {
+      body.innerHTML =
+        '<p style="font-size:13.5px;margin:0 0 10px;">Du kannst an diesem Termin nicht? Dann frag einen Tausch an. ' +
+        'Dein Name bleibt mit dem Hinweis <strong>„sucht Tausch“</strong> eingetragen, bis jemand mit dir tauscht – du bleibst also bis dahin verantwortlich.</p>' +
+        '<div class="field"><label>Hinweis (optional)</label><input id="mySlotNote" type="text" maxlength="120" placeholder="z. B. Urlaub, Geburtstag …" /></div>';
+      actions.innerHTML =
+        '<button class="btn ghost" id="mySlotClose">Abbrechen</button>' +
+        '<button class="btn danger" id="mySlotLeave">Austragen</button>' +
+        '<button class="btn primary" id="mySlotRequest">Tausch anfragen</button>';
+      document.getElementById("mySlotRequest").onclick = requestSwap;
+      document.getElementById("mySlotLeave").onclick = leaveSlot;
+    } else {
+      body.innerHTML =
+        '<p style="font-size:13.5px;margin:0;">Du suchst seit ' + esc(fmtTs(entry.swap.requestedAt)) + ' einen Tausch' +
+        (entry.swap.note ? ' („' + esc(entry.swap.note) + '“)' : "") + '. Bis jemand tauscht, bleibst du eingetragen.</p>' +
+        offersHtml(dateId, entry);
+      actions.innerHTML =
+        '<button class="btn ghost" id="mySlotClose">Schließen</button>' +
+        '<button class="btn" id="mySlotCancelReq">Anfrage zurückziehen</button>';
+      document.getElementById("mySlotCancelReq").onclick = cancelSwapRequest;
+      bindOfferButtons(body);
+    }
+    document.getElementById("mySlotClose").onclick = closeMySlot;
+    document.getElementById("mySlotBackdrop").classList.add("open");
+  }
+  function closeMySlot() { document.getElementById("mySlotBackdrop").classList.remove("open"); }
+
+  async function updateMyEntry(dateId, mutate) {
+    // Lädt die Zeile frisch, ändert den eigenen Eintrag über mutate(entry) und speichert.
+    var me = getMyIdentity().name;
+    var row = await fetchRow(dateId);
+    var signups = (row.data.signups || []).slice();
+    var idx = signups.findIndex(s => norm(s.name) === norm(me));
+    if (idx < 0) throw new Error("Du bist an diesem Termin nicht (mehr) eingetragen.");
+    var res = mutate(Object.assign({}, signups[idx]));
+    if (res.remove) signups.splice(idx, 1); else signups[idx] = res.entry;
+    await saveRow(dateId, signups, row.data.history, res.history);
+  }
+
+  async function requestSwap() {
+    var note = (document.getElementById("mySlotNote").value || "").trim();
+    var me = getMyIdentity().name;
+    try {
+      await updateMyEntry(pendingMySlot.dateId, e => {
+        e.swap = { requestedAt: nowIso(), note: note, offers: [] };
+        return { entry: e, history: [e.name + " sucht einen Tausch" + (note ? " (" + note + ")" : "")] };
+      });
+      closeMySlot(); renderAll();
+      toast("Tauschanfrage ist eingetragen – mit deinem Namen.");
+    } catch (err) { showError("mySlotError", err.message); }
+  }
+
+  async function cancelSwapRequest() {
+    try {
+      await updateMyEntry(pendingMySlot.dateId, e => {
+        delete e.swap;
+        return { entry: e, history: [e.name + " hat die Tauschanfrage zurückgezogen"] };
+      });
+      closeMySlot(); renderAll();
+      toast("Tauschanfrage zurückgezogen. Du bist wieder fest eingetragen.");
+    } catch (err) { showError("mySlotError", err.message); }
+  }
+
+  function leaveSlot() {
+    var dateId = pendingMySlot.dateId;
+    closeMySlot();
+    showConfirm("Wirklich austragen? Dein Platz wird dann einfach frei und niemand wird gezielt gefragt. Wenn du nur an diesem Tag nicht kannst, ist „Tausch anfragen“ meist besser.", async () => {
+      try {
+        await updateMyEntry(dateId, e => ({ remove: true, history: [e.name + " hat sich ausgetragen"] }));
+        renderAll();
+        toast("Ausgetragen.");
+      } catch (err) { toast(err.message); }
+    }, "Austragen");
+  }
+
+  // ===================== Tausch: mit jemand anderem =====================
+
+  function openSwapModal(dateId, requesterName) {
+    var ident = getMyIdentity();
+    if (norm(ident.name) && norm(ident.name) === norm(requesterName)) { openMySlotModal(dateId); return; }
+    pendingSwap = { dateId: dateId, requester: requesterName };
+    var row = datesById[dateId];
+    var entry = (row.data.signups || []).find(s => norm(s.name) === norm(requesterName));
+    document.getElementById("swapTitle").textContent = "Mit " + requesterName + " tauschen";
+    document.getElementById("swapSub").textContent =
+      requesterName + " kann am " + longDate(dateId) + (row.data.time ? " (" + row.data.time + ")" : "") + " nicht" +
+      (entry && entry.swap && entry.swap.note ? " – „" + entry.swap.note + "“" : "") + ".";
+    document.getElementById("swapName").value = ident.name;
+    document.getElementById("swapPhone").value = ident.phone;
+    showError("swapError", "");
+    fillSwapOptions(true);
+    document.getElementById("swapBackdrop").classList.add("open");
+  }
+
+  function fillSwapOptions(preferCounter) {
+    var p = pendingSwap;
+    var name = document.getElementById("swapName").value;
+    var sel = document.getElementById("swapCounter");
+    var prev = sel.value;
+    var options = myDatesFor(name, p.dateId, p.requester);
+    sel.innerHTML = options.map(x =>
+      '<option value="' + x.id + '">Meinen Termin am ' + esc(shortDate(x.id)) + '</option>'
+    ).join("") + '<option value="">Nichts – ich übernehme einfach</option>';
+    if (!preferCounter && Array.prototype.some.call(sel.options, o => o.value === prev)) sel.value = prev;
+    document.getElementById("swapSelectLabel").textContent = p.requester + " übernimmt im Gegenzug";
+    updateSwapHint();
+  }
+
+  function updateSwapHint() {
+    var p = pendingSwap;
+    var counter = document.getElementById("swapCounter").value;
+    var name = document.getElementById("swapName").value.trim() || "du";
+    document.getElementById("swapHint").textContent = counter
+      ? p.requester + " bekommt dein Angebot und muss den Tausch bestätigen. Bis dahin bleibt alles, wie es ist."
+      : "Du wirst sofort anstelle von " + p.requester + " eingetragen. " + p.requester + " ist dann frei.";
+    document.getElementById("swapConfirm").textContent = counter ? "Tausch anbieten" : "Termin übernehmen";
+  }
+
+  async function confirmSwap() {
+    var p = pendingSwap;
+    var name = document.getElementById("swapName").value.trim();
+    var phone = document.getElementById("swapPhone").value.trim();
+    var counter = document.getElementById("swapCounter").value;
+    if (!name) { showError("swapError", "Bitte gib deinen Namen ein – Tausche laufen immer mit Namen."); return; }
+    if (norm(name) === norm(p.requester)) { showError("swapError", "Du kannst nicht mit dir selbst tauschen."); return; }
+    var btn = document.getElementById("swapConfirm");
+    btn.disabled = true;
+    try {
+      var row = await fetchRow(p.dateId);
+      var signups = (row.data.signups || []).slice();
+      var idx = signups.findIndex(s => norm(s.name) === norm(p.requester) && s.swap);
+      if (idx < 0) throw new Error(p.requester + " sucht für diesen Termin keinen Tausch mehr.");
+      if (signups.some(s => norm(s.name) === norm(name))) throw new Error("Du bist an diesem Termin schon eingetragen.");
+      var requester = signups[idx];
+
+      if (!counter) {
+        signups[idx] = { name: name, phone: phone, signedUpAt: nowIso(), takenOverFrom: requester.name };
+        await saveRow(p.dateId, signups, row.data.history, [name + " übernimmt den Termin von " + requester.name]);
+        setMyIdentity(name, phone);
+        document.getElementById("swapBackdrop").classList.remove("open");
+        renderAll();
+        toast("Erledigt: Du bist jetzt statt " + requester.name + " eingetragen.");
+        return;
+      }
+
+      var other = await fetchRow(counter);
+      var os = other.data.signups || [];
+      if (!os.some(s => norm(s.name) === norm(name))) throw new Error("Du bist am " + longDate(counter) + " nicht eingetragen.");
+      if (os.some(s => norm(s.name) === norm(requester.name))) throw new Error(requester.name + " ist am " + longDate(counter) + " schon eingetragen.");
+
+      var swap = Object.assign({ offers: [] }, requester.swap);
+      var offers = (swap.offers || []).filter(o => norm(o.name) !== norm(name));
+      offers.push({ ts: nowIso(), name: name, phone: phone, dateId: counter });
+      signups[idx] = Object.assign({}, requester, { swap: Object.assign({}, swap, { offers: offers }) });
+      await saveRow(p.dateId, signups, row.data.history, [name + " bietet " + requester.name + " einen Tausch an (gegen " + shortDate(counter) + ")"]);
+      setMyIdentity(name, phone);
+      document.getElementById("swapBackdrop").classList.remove("open");
+      renderAll();
+      toast("Angebot gesendet. " + requester.name + " muss den Tausch noch bestätigen.");
+    } catch (err) {
+      showError("swapError", err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ===================== Angebote annehmen / ablehnen =====================
+
+  async function removeOffer(dateId, ts, historyText) {
+    await updateMyEntry(dateId, e => {
+      var offers = ((e.swap && e.swap.offers) || []).filter(o => o.ts !== ts);
+      e.swap = Object.assign({}, e.swap, { offers: offers });
+      return { entry: e, history: historyText ? [historyText] : [] };
+    });
+  }
+
+  async function acceptOffer(dateId, ts, btn) {
+    if (btn) btn.disabled = true;
+    var me = getMyIdentity();
+    try {
+      var x = await fetchRow(dateId);
+      var xs = (x.data.signups || []).slice();
+      var aIdx = xs.findIndex(s => norm(s.name) === norm(me.name) && s.swap);
+      if (aIdx < 0) throw new Error("Diese Tauschanfrage ist nicht mehr offen.");
+      var a = xs[aIdx];
+      var offer = (a.swap.offers || []).find(o => o.ts === ts);
+      if (!offer) throw new Error("Dieses Angebot gibt es nicht mehr.");
+
+      var y = await fetchRow(offer.dateId).catch(() => null);
+      var ys = y ? (y.data.signups || []).slice() : [];
+      var bIdx = ys.findIndex(s => norm(s.name) === norm(offer.name));
+      var problem = !y ? "Der Gegentermin existiert nicht mehr."
+        : bIdx < 0 ? offer.name + " ist am " + longDate(offer.dateId) + " nicht mehr eingetragen."
+        : ys.some(s => norm(s.name) === norm(a.name)) ? "Du bist am " + longDate(offer.dateId) + " schon eingetragen."
+        : xs.some(s => norm(s.name) === norm(offer.name)) ? offer.name + " ist an deinem Termin schon eingetragen."
+        : null;
+      if (problem) {
+        await removeOffer(dateId, ts, null);
+        renderAll();
+        throw new Error(problem + " Das Angebot wurde entfernt.");
+      }
+
+      var now = nowIso();
+      var text = "Tausch: " + a.name + " ↔ " + offer.name + " (" + offer.name + " übernimmt " + shortDate(dateId) + ", " + a.name + " übernimmt " + shortDate(offer.dateId) + ")";
+      var bPhone = offer.phone || ys[bIdx].phone || "";
+      ys[bIdx] = { name: a.name, phone: a.phone || me.phone || "", signedUpAt: now, swappedWith: offer.name };
+      xs[aIdx] = { name: offer.name, phone: bPhone, signedUpAt: now, swappedWith: a.name };
+      await saveRow(offer.dateId, ys, y.data.history, [text]);
+      await saveRow(dateId, xs, x.data.history, [text]);
+      closeMySlot();
+      renderAll();
+      toast("Getauscht! Du übernimmst jetzt den " + longDate(offer.dateId) + ".");
+    } catch (err) {
+      toast(err.message);
+      if (document.getElementById("mySlotBackdrop").classList.contains("open")) openMySlotModal(dateId);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function declineOffer(dateId, ts, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      var entry = (datesById[dateId].data.signups || []).find(s => norm(s.name) === norm(getMyIdentity().name));
+      var offer = entry && entry.swap && (entry.swap.offers || []).find(o => o.ts === ts);
+      await removeOffer(dateId, ts, (entry ? entry.name : "") + " hat das Tauschangebot von " + (offer ? offer.name : "?") + " abgelehnt");
+      renderAll();
+      if (document.getElementById("mySlotBackdrop").classList.contains("open")) openMySlotModal(dateId);
+      toast("Angebot abgelehnt.");
+    } catch (err) { toast(err.message); }
+    finally { if (btn) btn.disabled = false; }
+  }
+
+  function bindStaticHandlers() {
+    document.getElementById("infoSommerBtn").onclick = () => { selectedInfoSeason = "sommer"; renderInfo(); };
+    document.getElementById("infoWinterBtn").onclick = () => { selectedInfoSeason = "winter"; renderInfo(); };
+    document.getElementById("saveIdentityBtn").onclick = () => {
+      setMyIdentity(document.getElementById("nameInput").value, document.getElementById("phoneInput").value);
+      renderAll();
+      toast("Gespeichert");
+    };
+    document.getElementById("historyToggle").onclick = function() {
+      var el = document.getElementById("historyList");
+      el.style.display = el.style.display === "none" ? "block" : "none";
+    };
+    document.getElementById("signupCancel").onclick = () => document.getElementById("signupModalBackdrop").classList.remove("open");
+    document.getElementById("signupConfirm").onclick = confirmSignup;
+    document.getElementById("swapCancel").onclick = () => document.getElementById("swapBackdrop").classList.remove("open");
+    document.getElementById("swapConfirm").onclick = confirmSwap;
+    document.getElementById("swapCounter").onchange = updateSwapHint;
+    document.getElementById("swapName").oninput = () => fillSwapOptions(false);
+    document.getElementById("infoEditCancel").onclick = () => document.getElementById("infoEditBackdrop").classList.remove("open");
+    document.getElementById("infoEditSave").onclick = async () => {
+      var text = document.getElementById("infoEditArea").value;
+      await supabaseClient.from('info').upsert({ id: 'general', text, updated_at: nowIso() });
+      document.getElementById("infoEditBackdrop").classList.remove("open");
+      toast("Infos gespeichert");
+    };
+    document.getElementById("confirmModalCancel").onclick = () => document.getElementById("confirmModalBackdrop").classList.remove("open");
+    document.getElementById("confirmModalOk").onclick = () => {
+      if (confirmCallback) confirmCallback();
+      document.getElementById("confirmModalBackdrop").classList.remove("open");
+    };
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
