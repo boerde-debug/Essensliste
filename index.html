@@ -415,7 +415,8 @@
     var req = swapRequesters(signups);
     return {
       needs_replacement: req.length > 0,
-      replacement_note: req.length ? "Tausch gesucht von " + req.map(s => s.name).join(", ") : null
+      // Nie null schreiben: die Spalte darf in Supabase nicht leer (NULL) sein.
+      replacement_note: req.length ? "Tausch gesucht von " + req.map(s => s.name).join(", ") : ""
     };
   }
   async function saveRow(id, signups, history, newHistoryTexts) {
@@ -423,7 +424,10 @@
     var fullHistory = (history || []).concat(newHistoryTexts.map(t => ({ ts: ts, text: t })));
     var payload = Object.assign({ signups: signups, history: fullHistory }, flagFields(signups));
     var { error } = await supabaseClient.from('dates').update(payload).eq('id', id);
-    if (error) throw new Error("Speichern fehlgeschlagen. Bitte versuche es erneut.");
+    if (error) {
+      console.error("Supabase-Fehler beim Speichern:", error);
+      throw new Error("Speichern fehlgeschlagen" + (error.message ? " (" + error.message + ")" : "") + ". Bitte versuche es erneut.");
+    }
     if (datesById[id]) {
       datesById[id].data.signups = signups;
       datesById[id].data.history = fullHistory;
@@ -741,7 +745,8 @@
     
     var { error } = await supabaseClient.from('dates').update(Object.assign({ signups, history }, flagFields(signups))).eq('id', pendingSignupDateId);
     if (error) {
-      document.getElementById("signupError").textContent = "Eintragen fehlgeschlagen. Bitte versuche es erneut.";
+      console.error("Supabase-Fehler beim Eintragen:", error);
+      document.getElementById("signupError").textContent = "Eintragen fehlgeschlagen" + (error.message ? " (" + error.message + ")" : "") + ". Bitte versuche es erneut.";
       document.getElementById("signupError").style.display = "block";
       return;
     }
