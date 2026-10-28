@@ -74,7 +74,17 @@
     .slot.filled.mine { border-color: var(--ok); }
     .slot.empty { background: var(--surface-2); color: var(--ink-dim); border-style: dashed; border-color: var(--border); }
     .slot.empty.third { background: #f1faff; color: #426f89; border-color: #a6d8f3; }
+    .slot.swap { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); border-style: dashed; }
     .slot .phone { opacity: 0.8; font-weight: 500; }
+    .swap-tag { font-size: 11px; font-weight: 800; letter-spacing: 0.02em; }
+    .status-pill { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); white-space: nowrap; }
+    .offer { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-size: 13px; }
+    .offer .offer-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .mine-block { padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .mine-block .mine-item { border-bottom: none; padding: 0; align-items: center; flex-wrap: wrap; }
+    .mine-block .mine-item > span:first-child { flex: 1 1 180px; }
+    .modal select, .modal textarea { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 10px; color: var(--ink); font-size: 16px; font-family: inherit; }
+    .modal .hint { font-size: 12.5px; color: var(--ink-dim); margin-top: 4px; }
     .slot-flag-note { font-size: 12px; margin-top: 6px; color: var(--warn); font-weight: 700; }
     .admin-del { flex: none; background: none; border: none; color: var(--ink-dim); cursor: pointer; font-size: 16px; padding: 4px; }
     .admin-del:hover { color: var(--warn); }
@@ -182,7 +192,7 @@
     <div class="legend">
       <span><span class="dot ok"></span> Termin übernommen</span>
       <span><span class="dot empty"></span> noch offen</span>
-      <span><span class="dot warn"></span> Vertretung gesucht</span>
+      <span><span class="dot warn"></span> Tausch gesucht</span>
     </div>
   </section>
 
@@ -210,14 +220,33 @@
   </div>
 </div>
 
-<div class="modal-backdrop" id="withdrawModalBackdrop">
+<!-- Eigener Termin: Tausch anfragen / Angebote / Austragen -->
+<div class="modal-backdrop" id="mySlotBackdrop">
   <div class="modal">
-    <h3>Austragen</h3>
-    <p class="sub" id="withdrawSub"></p>
-    <div class="error-msg" id="withdrawError" style="display:none;"></div>
+    <h3>Mein Termin</h3>
+    <p class="sub" id="mySlotSub"></p>
+    <div id="mySlotBody"></div>
+    <div class="error-msg" id="mySlotError" style="display:none;"></div>
+    <div class="actions" id="mySlotActions"></div>
+  </div>
+</div>
+
+<!-- Tausch mit jemand anderem -->
+<div class="modal-backdrop" id="swapBackdrop">
+  <div class="modal">
+    <h3 id="swapTitle">Tauschen</h3>
+    <p class="sub" id="swapSub"></p>
+    <div class="field"><label>Dein Name</label><input id="swapName" type="text" placeholder="Dein Name" /></div>
+    <div class="field"><label>Telefon (optional)</label><input id="swapPhone" type="tel" placeholder="Für Rückfragen" /></div>
+    <div class="field">
+      <label id="swapSelectLabel">Im Gegenzug</label>
+      <select id="swapCounter"></select>
+      <div class="hint" id="swapHint"></div>
+    </div>
+    <div class="error-msg" id="swapError" style="display:none;"></div>
     <div class="actions">
-      <button class="btn ghost" id="withdrawCancel">Abbrechen</button>
-      <button class="btn danger" id="withdrawConfirmPlain">Austragen</button>
+      <button class="btn ghost" id="swapCancel">Abbrechen</button>
+      <button class="btn primary" id="swapConfirm">Tausch anbieten</button>
     </div>
   </div>
 </div>
@@ -265,7 +294,8 @@
   let infoData = null;
   let selectedInfoSeason = null;
   let pendingSignupDateId = null;
-  let pendingWithdraw = null;
+  let pendingMySlot = null;   // { dateId }
+  let pendingSwap = null;     // { dateId, requester }
   let confirmCallback = null;
   
   const urlParams = new URLSearchParams(window.location.search);
@@ -349,15 +379,71 @@
     renderAll();
   }
 
+  function mapRow(row) {
+    return { id: row.id, data: { season: row.season, label: row.label, time: row.time, signups: row.signups || [], needsReplacement: row.needs_replacement, replacementNote: row.replacement_note, history: row.history || [] } };
+  }
+
   async function fetchDates() {
     const { data, error } = await supabaseClient.from('dates').select('*').order('id', { ascending: true });
     if (!error && data) {
       datesById = {};
-      data.forEach(row => {
-        datesById[row.id] = { id: row.id, data: { season: row.season, label: row.label, time: row.time, signups: row.signups || [], needsReplacement: row.needs_replacement, replacementNote: row.replacement_note, history: row.history || [] } };
-      });
+      data.forEach(row => { datesById[row.id] = mapRow(row); });
       renderAll();
     }
+  }
+
+  // Frischen Stand einer Zeile holen, damit parallele Änderungen nicht überschrieben werden.
+  async function fetchRow(id) {
+    const { data, error } = await supabaseClient.from('dates').select('*').eq('id', id).single();
+    if (error || !data) throw new Error("Termin konnte nicht geladen werden.");
+    return mapRow(data);
+  }
+
+  // --- Tausch-Hilfen ---
+  // Eine Tauschanfrage hängt am Eintrag der Person: signup.swap = { requestedAt, note, offers: [{ ts, name, phone, dateId }] }
+  function swapRequesters(signups) {
+    return (signups || []).filter(s => s && s.swap);
+  }
+  function legacyOpen(d) {
+    // Alte "Vertretung gesucht"-Markierung (aus der früheren Version), solange noch ein Platz frei ist.
+    return d.needsReplacement && !swapRequesters(d.signups).length && (d.signups || []).length < 3;
+  }
+  function rowFlagged(d) {
+    return swapRequesters(d.signups).length > 0 || legacyOpen(d);
+  }
+  function flagFields(signups) {
+    var req = swapRequesters(signups);
+    return {
+      needs_replacement: req.length > 0,
+      replacement_note: req.length ? "Tausch gesucht von " + req.map(s => s.name).join(", ") : null
+    };
+  }
+  async function saveRow(id, signups, history, newHistoryTexts) {
+    var ts = nowIso();
+    var fullHistory = (history || []).concat(newHistoryTexts.map(t => ({ ts: ts, text: t })));
+    var payload = Object.assign({ signups: signups, history: fullHistory }, flagFields(signups));
+    var { error } = await supabaseClient.from('dates').update(payload).eq('id', id);
+    if (error) throw new Error("Speichern fehlgeschlagen. Bitte versuche es erneut.");
+    if (datesById[id]) {
+      datesById[id].data.signups = signups;
+      datesById[id].data.history = fullHistory;
+      datesById[id].data.needsReplacement = payload.needs_replacement;
+      datesById[id].data.replacementNote = payload.replacement_note;
+    }
+  }
+  function shortDate(id) {
+    return weekdayShort(id) + ", " + new Date(id + "T00:00:00").toLocaleDateString("de-DE", { day: "numeric", month: "short" });
+  }
+  function myDatesFor(name, excludeId, excludeName) {
+    // Termine, auf denen "name" eingetragen ist und die "excludeName" noch nicht hat.
+    var me = norm(name);
+    if (!me) return [];
+    var today = new Date().toISOString().slice(0, 10);
+    return sortedDates().filter(x => {
+      if (x.id === excludeId || x.id < today) return false;
+      var s = x.data.signups || [];
+      return s.some(e => norm(e.name) === me) && !s.some(e => norm(e.name) === norm(excludeName));
+    });
   }
 
   async function fetchInfo() {
@@ -424,16 +510,38 @@
   }
 
   function renderBanner() {
-    var flagged = sortedDates().filter(function (x) { return x.data.needsReplacement; });
+    var today = new Date().toISOString().slice(0, 10);
+    var flagged = sortedDates().filter(function (x) { return x.id >= today && rowFlagged(x.data); });
     var section = document.getElementById("bannerSection");
     if (!flagged.length) { section.style.display = "none"; return; }
     section.style.display = "block";
-    var items = flagged.map(function (x) {
-      return '<li>' + esc(longDate(x.id)) + ' — <span class="inline-link" data-open-signup="' + x.id + '">Ich übernehme</span></li>';
-    }).join("");
-    document.getElementById("bannerContent").innerHTML = "⚠ Termine suchen Vertretung:<ul>" + items + "</ul>";
-    document.querySelectorAll("[data-open-signup]").forEach(el => {
+    var me = norm(getMyIdentity().name);
+    var items = [];
+    flagged.forEach(function (x) {
+      swapRequesters(x.data.signups).forEach(function (s) {
+        var note = s.swap.note ? ' <span class="muted">(„' + esc(s.swap.note) + '“)</span>' : "";
+        var action = norm(s.name) === me
+          ? ' — <span class="inline-link" data-open-mine="' + x.id + '">Meine Anfrage ansehen</span>'
+          : ' — <span class="inline-link" data-open-swap="' + x.id + '|' + esc(s.name) + '">Ich tausche</span>';
+        items.push('<li>' + esc(longDate(x.id)) + ': <strong>' + esc(s.name) + '</strong> sucht einen Tausch' + note + action + '</li>');
+      });
+      if (legacyOpen(x.data)) {
+        var who = x.data.replacementNote ? ' (' + esc(x.data.replacementNote) + ')' : "";
+        items.push('<li>' + esc(longDate(x.id)) + ': freier Platz' + who + ' — <span class="inline-link" data-open-signup="' + x.id + '">Ich übernehme</span></li>');
+      }
+    });
+    document.getElementById("bannerContent").innerHTML = "⇄ Tausch gesucht:<ul>" + items.join("") + "</ul>";
+    document.querySelectorAll("#bannerContent [data-open-signup]").forEach(el => {
       el.onclick = () => openSignupModal(el.getAttribute("data-open-signup"));
+    });
+    document.querySelectorAll("#bannerContent [data-open-swap]").forEach(el => {
+      el.onclick = () => {
+        var p = el.getAttribute("data-open-swap").split("|");
+        openSwapModal(p[0], p.slice(1).join("|"));
+      };
+    });
+    document.querySelectorAll("#bannerContent [data-open-mine]").forEach(el => {
+      el.onclick = () => openMySlotModal(el.getAttribute("data-open-mine"));
     });
   }
 
@@ -473,13 +581,15 @@
     var slotsHtml = [signups[0], signups[1], signups[2]].map(function (s, i) {
       if (s) {
         var mine = norm(s.name) === myNorm && myNorm;
-        return '<span class="slot filled' + (mine ? " mine" : "") + '" data-slot-click="' + x.id + '|' + i + '">' +
-          esc(s.name) + (s.phone ? ' <span class="phone">· ' + esc(s.phone) + "</span>" : "") + "</span>";
+        var swapTag = s.swap ? ' <span class="swap-tag">⇄ sucht Tausch</span>' : "";
+        return '<span class="slot ' + (s.swap ? "swap" : "filled") + (mine ? " mine" : "") + '" data-slot-click="' + x.id + '|' + i + '"' +
+          (s.swap ? ' title="' + esc(s.name) + ' kann an diesem Termin nicht und sucht einen Tausch"' : "") + '>' +
+          esc(s.name) + (s.phone ? ' <span class="phone">· ' + esc(s.phone) + "</span>" : "") + swapTag + "</span>";
       }
       return '<span class="slot empty' + (i === 2 ? ' third' : '') + '" data-slot-click="' + x.id + '|' + i + '">+ Eintragen</span>';
     }).join("");
     var delBtn = isOwner ? '<button class="admin-del" data-del-date="' + x.id + '">✕</button>' : "";
-    return '<div class="date-row' + (d.needsReplacement ? " flagged" : "") + '">' +
+    return '<div class="date-row' + (rowFlagged(d) ? " flagged" : "") + '">' +
       '<div class="date-block"><div class="day">' + dayNum(x.id) + '</div><div class="mon">' + esc(monShort(x.id)) + "</div></div>" +
       '<div class="date-meta"><div class="title-line">' + esc(d.label || "Training") + '</div>' +
       '<div class="sub-line">' + esc(longDate(x.id)) + (d.time ? " · " + esc(d.time) : "") + '</div>' +
@@ -494,9 +604,11 @@
         var entry = (datesById[dateId].data.signups || [])[idx];
         var me = norm(getMyIdentity().name);
         if (entry && me && norm(entry.name) === me) {
-          openWithdrawModal(dateId, entry.name);
+          openMySlotModal(dateId);
         } else if (!entry) {
           openSignupModal(dateId);
+        } else if (entry.swap) {
+          openSwapModal(dateId, entry.name);
         } else {
           toast("Belegt von " + entry.name);
         }
@@ -520,12 +632,47 @@
     if (!me) { el.innerHTML = '<p class="empty-state">Gib oben deinen Namen ein.</p>'; return; }
     var mine = [];
     sortedDates().forEach(x => {
-      (x.data.signups || []).forEach(s => { if (norm(s.name) === me) mine.push(x); });
+      (x.data.signups || []).forEach(s => { if (norm(s.name) === me) mine.push({ x: x, entry: s }); });
     });
-    var winter = mine.filter(x => x.data.season === "winter").length;
-    var sommer = mine.filter(x => x.data.season === "sommer").length;
-    el.innerHTML = mine.length ? mine.map(m => '<div class="mine-item"><span>' + esc(longDate(m.id)) + '</span></div>').join("") : '<p class="empty-state">Keine Termine.</p>';
+    var winter = mine.filter(m => m.x.data.season === "winter").length;
+    var sommer = mine.filter(m => m.x.data.season === "sommer").length;
+    el.innerHTML = mine.length ? mine.map(m => {
+      var status = "";
+      if (m.entry.swap) {
+        var n = (m.entry.swap.offers || []).length;
+        status = '<span class="status-pill">⇄ Tausch gesucht' + (n ? " · " + n + (n === 1 ? " Angebot" : " Angebote") : "") + '</span>';
+      }
+      return '<div class="mine-block"><div class="mine-item"><span>' + esc(longDate(m.x.id)) + (m.x.data.time ? ' <span class="muted">· ' + esc(m.x.data.time) + '</span>' : "") + '</span>' +
+        '<span style="display:flex;gap:8px;align-items:center;">' + status + '<button class="btn small" data-open-mine="' + m.x.id + '">' + (m.entry.swap ? "Verwalten" : "Tauschen") + '</button></span></div>' +
+        (m.entry.swap ? offersHtml(m.x.id, m.entry) : "") + '</div>';
+    }).join("") : '<p class="empty-state">Keine Termine.</p>';
     el.innerHTML += '<div class="quota-row"><span class="quota-pill ' + (winter >= 1 ? "ok" : "open") + '">Winter ' + winter + '/1</span><span class="quota-pill ' + (sommer >= 2 ? "ok" : "open") + '">Sommer ' + sommer + '/2</span></div>';
+    el.querySelectorAll("[data-open-mine]").forEach(b => { b.onclick = () => openMySlotModal(b.getAttribute("data-open-mine")); });
+    bindOfferButtons(el);
+  }
+
+  function offersHtml(dateId, entry) {
+    var offers = (entry.swap && entry.swap.offers) || [];
+    if (!offers.length) return '<p class="hint muted" style="font-size:12.5px;margin:6px 0 0;">Noch kein Tauschangebot. Andere sehen deine Anfrage oben in der Liste.</p>';
+    return offers.map(o => {
+      var other = o.dateId && datesById[o.dateId];
+      var what = other
+        ? '<strong>' + esc(o.name) + '</strong> übernimmt deinen Termin und du übernimmst dafür <strong>' + esc(longDate(o.dateId)) + '</strong>' + (other.data.time ? ' (' + esc(other.data.time) + ')' : "") + '.'
+        : '<strong>' + esc(o.name) + '</strong> möchte tauschen (der Gegentermin existiert nicht mehr).';
+      return '<div class="offer">' + what + (o.phone ? ' <span class="muted">Tel. ' + esc(o.phone) + '</span>' : "") +
+        '<div class="offer-actions">' +
+        (other ? '<button class="btn primary small" data-accept-offer="' + dateId + '|' + esc(o.ts) + '">Tausch annehmen</button>' : "") +
+        '<button class="btn small" data-decline-offer="' + dateId + '|' + esc(o.ts) + '">Ablehnen</button></div></div>';
+    }).join("");
+  }
+
+  function bindOfferButtons(container) {
+    container.querySelectorAll("[data-accept-offer]").forEach(b => {
+      b.onclick = () => { var p = b.getAttribute("data-accept-offer").split("|"); acceptOffer(p[0], p[1], b); };
+    });
+    container.querySelectorAll("[data-decline-offer]").forEach(b => {
+      b.onclick = () => { var p = b.getAttribute("data-decline-offer").split("|"); declineOffer(p[0], p[1], b); };
+    });
   }
 
   function renderOverview() {
@@ -534,13 +681,14 @@
       (x.data.signups || []).forEach(s => {
         var k = norm(s.name);
         if (!k) return;
-        if (!byName[k]) byName[k] = { name: s.name, winter: 0, sommer: 0 };
+        if (!byName[k]) byName[k] = { name: s.name, winter: 0, sommer: 0, swaps: [] };
         byName[k][x.data.season === "winter" ? "winter" : "sommer"]++;
+        if (s.swap) byName[k].swaps.push(shortDate(x.id));
       });
     });
     var rows = Object.values(byName).sort((a,b) => a.name.localeCompare(b.name));
-    var html = "<thead><tr><th>Name</th><th>Winter</th><th>Sommer</th></tr></thead><tbody>";
-    rows.forEach(r => { html += "<tr><td>" + esc(r.name) + "</td><td>" + r.winter + "</td><td>" + r.sommer + "</td></tr>"; });
+    var html = "<thead><tr><th>Name</th><th>Winter</th><th>Sommer</th><th>Tausch gesucht</th></tr></thead><tbody>";
+    rows.forEach(r => { html += "<tr><td>" + esc(r.name) + "</td><td>" + r.winter + "</td><td>" + r.sommer + "</td><td>" + (r.swaps.length ? '<span style="color:var(--warn);font-weight:700;">' + esc(r.swaps.join(", ")) + "</span>" : '<span class="muted">–</span>') + "</td></tr>"; });
     document.getElementById("overviewCard").querySelector(".wrap-scroll").innerHTML = '<table class="overview">' + html + "</tbody></table>";
   }
 
@@ -591,14 +739,14 @@
     signups = signups.concat({ name, phone, signedUpAt: nowIso() });
     var history = (row.data.history || []).concat({ ts: nowIso(), text: name + " hat sich eingetragen" });
     
-    var { error } = await supabaseClient.from('dates').update({ signups, needs_replacement: false, history }).eq('id', pendingSignupDateId);
+    var { error } = await supabaseClient.from('dates').update(Object.assign({ signups, history }, flagFields(signups))).eq('id', pendingSignupDateId);
     if (error) {
       document.getElementById("signupError").textContent = "Eintragen fehlgeschlagen. Bitte versuche es erneut.";
       document.getElementById("signupError").style.display = "block";
       return;
     }
     row.data.signups = signups;
-    row.data.needsReplacement = false;
+    row.data.needsReplacement = flagFields(signups).needs_replacement;
     row.data.history = history;
     setMyIdentity(name, phone);
     document.getElementById("signupModalBackdrop").classList.remove("open");
@@ -606,19 +754,256 @@
     toast("Erfolgreich eingetragen!");
   }
 
-  function openWithdrawModal(dateId, name) {
-    pendingWithdraw = { dateId, name };
-    document.getElementById("withdrawModalBackdrop").classList.add("open");
+  // ===================== Tausch: eigener Termin =====================
+
+  function showError(id, msg) {
+    var el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
   }
 
-  async function confirmWithdrawPlain() {
-    var row = datesById[pendingWithdraw.dateId];
-    var signups = (row.data.signups || []).filter(s => norm(s.name) !== norm(pendingWithdraw.name));
-    var history = (row.data.history || []).concat({ ts: nowIso(), text: pendingWithdraw.name + " hat sich ausgetragen" });
-    
-    await supabaseClient.from('dates').update({ signups, needs_replacement: true, replacement_note: "zuletzt von " + pendingWithdraw.name, history }).eq('id', pendingWithdraw.dateId);
-    document.getElementById("withdrawModalBackdrop").classList.remove("open");
-    toast("Ausgetragen.");
+  function openMySlotModal(dateId) {
+    var me = norm(getMyIdentity().name);
+    var row = datesById[dateId];
+    if (!row || !me) return;
+    var entry = (row.data.signups || []).find(s => norm(s.name) === me);
+    if (!entry) { toast("Du bist an diesem Termin nicht eingetragen."); return; }
+    pendingMySlot = { dateId: dateId };
+    showError("mySlotError", "");
+    document.getElementById("mySlotSub").textContent = longDate(dateId) + (row.data.time ? " · " + row.data.time : "") + " · eingetragen als " + entry.name;
+    var body = document.getElementById("mySlotBody");
+    var actions = document.getElementById("mySlotActions");
+    if (!entry.swap) {
+      body.innerHTML =
+        '<p style="font-size:13.5px;margin:0 0 10px;">Du kannst an diesem Termin nicht? Dann frag einen Tausch an. ' +
+        'Dein Name bleibt mit dem Hinweis <strong>„sucht Tausch“</strong> eingetragen, bis jemand mit dir tauscht – du bleibst also bis dahin verantwortlich.</p>' +
+        '<div class="field"><label>Hinweis (optional)</label><input id="mySlotNote" type="text" maxlength="120" placeholder="z. B. Urlaub, Geburtstag …" /></div>';
+      actions.innerHTML =
+        '<button class="btn ghost" id="mySlotClose">Abbrechen</button>' +
+        '<button class="btn danger" id="mySlotLeave">Austragen</button>' +
+        '<button class="btn primary" id="mySlotRequest">Tausch anfragen</button>';
+      document.getElementById("mySlotRequest").onclick = requestSwap;
+      document.getElementById("mySlotLeave").onclick = leaveSlot;
+    } else {
+      body.innerHTML =
+        '<p style="font-size:13.5px;margin:0;">Du suchst seit ' + esc(fmtTs(entry.swap.requestedAt)) + ' einen Tausch' +
+        (entry.swap.note ? ' („' + esc(entry.swap.note) + '“)' : "") + '. Bis jemand tauscht, bleibst du eingetragen.</p>' +
+        offersHtml(dateId, entry);
+      actions.innerHTML =
+        '<button class="btn ghost" id="mySlotClose">Schließen</button>' +
+        '<button class="btn" id="mySlotCancelReq">Anfrage zurückziehen</button>';
+      document.getElementById("mySlotCancelReq").onclick = cancelSwapRequest;
+      bindOfferButtons(body);
+    }
+    document.getElementById("mySlotClose").onclick = closeMySlot;
+    document.getElementById("mySlotBackdrop").classList.add("open");
+  }
+  function closeMySlot() { document.getElementById("mySlotBackdrop").classList.remove("open"); }
+
+  async function updateMyEntry(dateId, mutate) {
+    // Lädt die Zeile frisch, ändert den eigenen Eintrag über mutate(entry) und speichert.
+    var me = getMyIdentity().name;
+    var row = await fetchRow(dateId);
+    var signups = (row.data.signups || []).slice();
+    var idx = signups.findIndex(s => norm(s.name) === norm(me));
+    if (idx < 0) throw new Error("Du bist an diesem Termin nicht (mehr) eingetragen.");
+    var res = mutate(Object.assign({}, signups[idx]));
+    if (res.remove) signups.splice(idx, 1); else signups[idx] = res.entry;
+    await saveRow(dateId, signups, row.data.history, res.history);
+  }
+
+  async function requestSwap() {
+    var note = (document.getElementById("mySlotNote").value || "").trim();
+    var me = getMyIdentity().name;
+    try {
+      await updateMyEntry(pendingMySlot.dateId, e => {
+        e.swap = { requestedAt: nowIso(), note: note, offers: [] };
+        return { entry: e, history: [e.name + " sucht einen Tausch" + (note ? " (" + note + ")" : "")] };
+      });
+      closeMySlot(); renderAll();
+      toast("Tauschanfrage ist eingetragen – mit deinem Namen.");
+    } catch (err) { showError("mySlotError", err.message); }
+  }
+
+  async function cancelSwapRequest() {
+    try {
+      await updateMyEntry(pendingMySlot.dateId, e => {
+        delete e.swap;
+        return { entry: e, history: [e.name + " hat die Tauschanfrage zurückgezogen"] };
+      });
+      closeMySlot(); renderAll();
+      toast("Tauschanfrage zurückgezogen. Du bist wieder fest eingetragen.");
+    } catch (err) { showError("mySlotError", err.message); }
+  }
+
+  function leaveSlot() {
+    var dateId = pendingMySlot.dateId;
+    closeMySlot();
+    showConfirm("Wirklich austragen? Dein Platz wird dann einfach frei und niemand wird gezielt gefragt. Wenn du nur an diesem Tag nicht kannst, ist „Tausch anfragen“ meist besser.", async () => {
+      try {
+        await updateMyEntry(dateId, e => ({ remove: true, history: [e.name + " hat sich ausgetragen"] }));
+        renderAll();
+        toast("Ausgetragen.");
+      } catch (err) { toast(err.message); }
+    }, "Austragen");
+  }
+
+  // ===================== Tausch: mit jemand anderem =====================
+
+  function openSwapModal(dateId, requesterName) {
+    var ident = getMyIdentity();
+    if (norm(ident.name) && norm(ident.name) === norm(requesterName)) { openMySlotModal(dateId); return; }
+    pendingSwap = { dateId: dateId, requester: requesterName };
+    var row = datesById[dateId];
+    var entry = (row.data.signups || []).find(s => norm(s.name) === norm(requesterName));
+    document.getElementById("swapTitle").textContent = "Mit " + requesterName + " tauschen";
+    document.getElementById("swapSub").textContent =
+      requesterName + " kann am " + longDate(dateId) + (row.data.time ? " (" + row.data.time + ")" : "") + " nicht" +
+      (entry && entry.swap && entry.swap.note ? " – „" + entry.swap.note + "“" : "") + ".";
+    document.getElementById("swapName").value = ident.name;
+    document.getElementById("swapPhone").value = ident.phone;
+    showError("swapError", "");
+    fillSwapOptions(true);
+    document.getElementById("swapBackdrop").classList.add("open");
+  }
+
+  function fillSwapOptions(preferCounter) {
+    var p = pendingSwap;
+    var name = document.getElementById("swapName").value;
+    var sel = document.getElementById("swapCounter");
+    var prev = sel.value;
+    var options = myDatesFor(name, p.dateId, p.requester);
+    sel.innerHTML = options.map(x =>
+      '<option value="' + x.id + '">Meinen Termin am ' + esc(shortDate(x.id)) + '</option>'
+    ).join("") + '<option value="">Nichts – ich übernehme einfach</option>';
+    if (!preferCounter && Array.prototype.some.call(sel.options, o => o.value === prev)) sel.value = prev;
+    document.getElementById("swapSelectLabel").textContent = p.requester + " übernimmt im Gegenzug";
+    updateSwapHint();
+  }
+
+  function updateSwapHint() {
+    var p = pendingSwap;
+    var counter = document.getElementById("swapCounter").value;
+    var name = document.getElementById("swapName").value.trim() || "du";
+    document.getElementById("swapHint").textContent = counter
+      ? p.requester + " bekommt dein Angebot und muss den Tausch bestätigen. Bis dahin bleibt alles, wie es ist."
+      : "Du wirst sofort anstelle von " + p.requester + " eingetragen. " + p.requester + " ist dann frei.";
+    document.getElementById("swapConfirm").textContent = counter ? "Tausch anbieten" : "Termin übernehmen";
+  }
+
+  async function confirmSwap() {
+    var p = pendingSwap;
+    var name = document.getElementById("swapName").value.trim();
+    var phone = document.getElementById("swapPhone").value.trim();
+    var counter = document.getElementById("swapCounter").value;
+    if (!name) { showError("swapError", "Bitte gib deinen Namen ein – Tausche laufen immer mit Namen."); return; }
+    if (norm(name) === norm(p.requester)) { showError("swapError", "Du kannst nicht mit dir selbst tauschen."); return; }
+    var btn = document.getElementById("swapConfirm");
+    btn.disabled = true;
+    try {
+      var row = await fetchRow(p.dateId);
+      var signups = (row.data.signups || []).slice();
+      var idx = signups.findIndex(s => norm(s.name) === norm(p.requester) && s.swap);
+      if (idx < 0) throw new Error(p.requester + " sucht für diesen Termin keinen Tausch mehr.");
+      if (signups.some(s => norm(s.name) === norm(name))) throw new Error("Du bist an diesem Termin schon eingetragen.");
+      var requester = signups[idx];
+
+      if (!counter) {
+        signups[idx] = { name: name, phone: phone, signedUpAt: nowIso(), takenOverFrom: requester.name };
+        await saveRow(p.dateId, signups, row.data.history, [name + " übernimmt den Termin von " + requester.name]);
+        setMyIdentity(name, phone);
+        document.getElementById("swapBackdrop").classList.remove("open");
+        renderAll();
+        toast("Erledigt: Du bist jetzt statt " + requester.name + " eingetragen.");
+        return;
+      }
+
+      var other = await fetchRow(counter);
+      var os = other.data.signups || [];
+      if (!os.some(s => norm(s.name) === norm(name))) throw new Error("Du bist am " + longDate(counter) + " nicht eingetragen.");
+      if (os.some(s => norm(s.name) === norm(requester.name))) throw new Error(requester.name + " ist am " + longDate(counter) + " schon eingetragen.");
+
+      var swap = Object.assign({ offers: [] }, requester.swap);
+      var offers = (swap.offers || []).filter(o => norm(o.name) !== norm(name));
+      offers.push({ ts: nowIso(), name: name, phone: phone, dateId: counter });
+      signups[idx] = Object.assign({}, requester, { swap: Object.assign({}, swap, { offers: offers }) });
+      await saveRow(p.dateId, signups, row.data.history, [name + " bietet " + requester.name + " einen Tausch an (gegen " + shortDate(counter) + ")"]);
+      setMyIdentity(name, phone);
+      document.getElementById("swapBackdrop").classList.remove("open");
+      renderAll();
+      toast("Angebot gesendet. " + requester.name + " muss den Tausch noch bestätigen.");
+    } catch (err) {
+      showError("swapError", err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ===================== Angebote annehmen / ablehnen =====================
+
+  async function removeOffer(dateId, ts, historyText) {
+    await updateMyEntry(dateId, e => {
+      var offers = ((e.swap && e.swap.offers) || []).filter(o => o.ts !== ts);
+      e.swap = Object.assign({}, e.swap, { offers: offers });
+      return { entry: e, history: historyText ? [historyText] : [] };
+    });
+  }
+
+  async function acceptOffer(dateId, ts, btn) {
+    if (btn) btn.disabled = true;
+    var me = getMyIdentity();
+    try {
+      var x = await fetchRow(dateId);
+      var xs = (x.data.signups || []).slice();
+      var aIdx = xs.findIndex(s => norm(s.name) === norm(me.name) && s.swap);
+      if (aIdx < 0) throw new Error("Diese Tauschanfrage ist nicht mehr offen.");
+      var a = xs[aIdx];
+      var offer = (a.swap.offers || []).find(o => o.ts === ts);
+      if (!offer) throw new Error("Dieses Angebot gibt es nicht mehr.");
+
+      var y = await fetchRow(offer.dateId).catch(() => null);
+      var ys = y ? (y.data.signups || []).slice() : [];
+      var bIdx = ys.findIndex(s => norm(s.name) === norm(offer.name));
+      var problem = !y ? "Der Gegentermin existiert nicht mehr."
+        : bIdx < 0 ? offer.name + " ist am " + longDate(offer.dateId) + " nicht mehr eingetragen."
+        : ys.some(s => norm(s.name) === norm(a.name)) ? "Du bist am " + longDate(offer.dateId) + " schon eingetragen."
+        : xs.some(s => norm(s.name) === norm(offer.name)) ? offer.name + " ist an deinem Termin schon eingetragen."
+        : null;
+      if (problem) {
+        await removeOffer(dateId, ts, null);
+        renderAll();
+        throw new Error(problem + " Das Angebot wurde entfernt.");
+      }
+
+      var now = nowIso();
+      var text = "Tausch: " + a.name + " ↔ " + offer.name + " (" + offer.name + " übernimmt " + shortDate(dateId) + ", " + a.name + " übernimmt " + shortDate(offer.dateId) + ")";
+      var bPhone = offer.phone || ys[bIdx].phone || "";
+      ys[bIdx] = { name: a.name, phone: a.phone || me.phone || "", signedUpAt: now, swappedWith: offer.name };
+      xs[aIdx] = { name: offer.name, phone: bPhone, signedUpAt: now, swappedWith: a.name };
+      await saveRow(offer.dateId, ys, y.data.history, [text]);
+      await saveRow(dateId, xs, x.data.history, [text]);
+      closeMySlot();
+      renderAll();
+      toast("Getauscht! Du übernimmst jetzt den " + longDate(offer.dateId) + ".");
+    } catch (err) {
+      toast(err.message);
+      if (document.getElementById("mySlotBackdrop").classList.contains("open")) openMySlotModal(dateId);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function declineOffer(dateId, ts, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      var entry = (datesById[dateId].data.signups || []).find(s => norm(s.name) === norm(getMyIdentity().name));
+      var offer = entry && entry.swap && (entry.swap.offers || []).find(o => o.ts === ts);
+      await removeOffer(dateId, ts, (entry ? entry.name : "") + " hat das Tauschangebot von " + (offer ? offer.name : "?") + " abgelehnt");
+      renderAll();
+      if (document.getElementById("mySlotBackdrop").classList.contains("open")) openMySlotModal(dateId);
+      toast("Angebot abgelehnt.");
+    } catch (err) { toast(err.message); }
+    finally { if (btn) btn.disabled = false; }
   }
 
   function bindStaticHandlers() {
@@ -635,8 +1020,10 @@
     };
     document.getElementById("signupCancel").onclick = () => document.getElementById("signupModalBackdrop").classList.remove("open");
     document.getElementById("signupConfirm").onclick = confirmSignup;
-    document.getElementById("withdrawCancel").onclick = () => document.getElementById("withdrawModalBackdrop").classList.remove("open");
-    document.getElementById("withdrawConfirmPlain").onclick = confirmWithdrawPlain;
+    document.getElementById("swapCancel").onclick = () => document.getElementById("swapBackdrop").classList.remove("open");
+    document.getElementById("swapConfirm").onclick = confirmSwap;
+    document.getElementById("swapCounter").onchange = updateSwapHint;
+    document.getElementById("swapName").oninput = () => fillSwapOptions(false);
     document.getElementById("infoEditCancel").onclick = () => document.getElementById("infoEditBackdrop").classList.remove("open");
     document.getElementById("infoEditSave").onclick = async () => {
       var text = document.getElementById("infoEditArea").value;
