@@ -7,23 +7,36 @@
   <!-- Supabase JS Client per CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
+    /* Farbpalette: nur 4 Farben
+       Gelb  = Sommer
+       Schwarz = Winter und Schrift
+       Weiß  = Hintergrund der Boxen
+       Himmelblau = alle übrigen Flächen (Seitenhintergrund, Eingabefelder, belegte Plätze)
+       Kräftiges Blau = Aktions-Knöpfe (Speichern, Eintragen, Tauschen …) */
     :root {
-      --bg: #e8f6ff;
-      --surface: #ffffff;
-      --surface-2: #ccecff;
-      --ink: #17150f;
-      --ink-dim: #285b78;
-      --accent: #f0b429;
-      --accent-ink: #17150f;
-      --accent-text: #8a6410;
-      --pending: #155e87;
-      --pending-bg: #d5efff;
-      --warn: #b23a4e;
-      --warn-bg: #f7dde1;
-      --ok: #2f6b49;
-      --ok-bg: #dcebe0;
-      --border: rgba(23, 21, 15, 0.14);
-      --shadow: 0 1px 2px rgba(23, 21, 15, 0.06), 0 6px 20px rgba(23, 21, 15, 0.06);
+      --yellow: #f0b429;
+      --black: #17150f;
+      --white: #ffffff;
+      --grey: #e6f2fa;  /* helles Himmelblau */
+      --cta: #0a66b0;   /* kräftiges Blau für Aktions-Knöpfe */
+      --cta-hover: #08528f;
+
+      --bg: var(--grey);
+      --surface: var(--white);
+      --surface-2: var(--grey);
+      --ink: var(--black);
+      --ink-dim: rgba(23, 21, 15, 0.62);
+      --accent: var(--yellow);
+      --accent-ink: var(--black);
+      --accent-text: var(--black);
+      --pending: var(--black);
+      --pending-bg: var(--white);
+      --warn: var(--black);
+      --warn-bg: var(--grey);
+      --ok: var(--black);
+      --ok-bg: var(--grey);
+      --border: rgba(23, 21, 15, 0.16);
+      --shadow: 0 1px 2px rgba(23, 21, 15, 0.05), 0 6px 20px rgba(23, 21, 15, 0.05);
     }
     * { box-sizing: border-box; }
     body {
@@ -38,7 +51,7 @@
     }
     header.top .inner { max-width: 760px; margin: 0 auto; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .brand { display: flex; flex-direction: column; gap: 2px; }
-    .brand .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-text); }
+    .brand .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); }
     .brand h1 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
     .conn-status { font-size: 12px; color: var(--ink-dim); }
     section { margin-top: 22px; }
@@ -46,22 +59,28 @@
     h2.section-title { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 10px; }
     h3.season-title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; margin: 0 0 10px; }
     .season-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; }
-    .season-tag.winter { background: var(--ink); color: var(--accent); }
-    .season-tag.sommer { background: var(--accent); color: var(--accent-ink); }
+    .season-tag.winter { background: var(--black); color: var(--white); }
+    .season-tag.sommer { background: var(--yellow); color: var(--black); }
     .season-note { font-size: 12.5px; color: var(--ink-dim); margin: -4px 0 12px; }
     .identity-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .identity-row input { flex: 1 1 160px; min-width: 120px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--ink); font-size: 16px; }
     .btn { appearance: none; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 40px; }
-    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .btn.primary { background: var(--cta); color: var(--white); border-color: var(--cta); }
+    .btn.primary:hover { background: var(--cta-hover); border-color: var(--cta-hover); }
+    .btn:disabled { opacity: 0.6; cursor: default; }
+    .btn.is-sommer { background: var(--yellow); color: var(--black); border-color: var(--yellow); }
+    .btn.is-winter { background: var(--black); color: var(--white); border-color: var(--black); }
+    .btn.season-btn { opacity: 1; }
+    .btn.season-btn[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--black); }
     .btn.ghost { background: transparent; }
     .btn.small { padding: 7px 12px; font-size: 12.5px; min-height: 34px; }
-    .btn.danger { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
-    .banner { background: var(--warn-bg); border: 1px solid var(--warn); color: var(--warn); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; }
+    .btn.danger { background: var(--white); color: var(--black); border-color: var(--black); }
+    .banner { background: var(--white); border: 1px solid var(--border); border-left: 5px solid var(--black); color: var(--black); box-shadow: var(--shadow); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; }
     .banner ul { margin: 8px 0 0; padding-left: 18px; font-weight: 500; }
     .inline-link { color: var(--warn); text-decoration: underline; cursor: pointer; font-weight: 700; }
     .date-row { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
     .date-row:last-child { border-bottom: none; }
-    .date-row.flagged { background: var(--warn-bg); margin: 0 -18px; padding: 12px 18px; border-radius: 10px; border-bottom-color: transparent; }
+    .date-row.flagged { box-shadow: inset 4px 0 0 var(--black); margin: 0 -18px; padding: 12px 18px 12px 14px; }
     .date-block { width: 58px; flex: none; text-align: center; }
     .date-block .day { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
     .date-block .mon { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--ink-dim); letter-spacing: 0.04em; }
@@ -71,13 +90,13 @@
     .slots { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .slot { display: flex; align-items: center; gap: 6px; min-height: 38px; border-radius: 999px; padding: 8px 14px; font-size: 13.5px; font-weight: 600; border: 1px solid transparent; cursor: pointer; }
     .slot.filled { background: var(--ok-bg); color: var(--ok); }
-    .slot.filled.mine { border-color: var(--ok); }
-    .slot.empty { background: var(--surface-2); color: var(--ink-dim); border-style: dashed; border-color: var(--border); }
-    .slot.empty.third { background: #f1faff; color: #426f89; border-color: #a6d8f3; }
-    .slot.swap { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); border-style: dashed; }
+    .slot.filled.mine { border: 2px solid var(--black); }
+    .slot.empty { background: var(--white); color: var(--black); border-style: dashed; border-color: rgba(23, 21, 15, 0.45); }
+    .slot.empty.third { background: var(--white); color: var(--ink-dim); border-style: dotted; border-color: var(--border); }
+    .slot.swap { background: var(--white); color: var(--black); border: 2px dashed var(--black); }
     .slot .phone { opacity: 0.8; font-weight: 500; }
     .swap-tag { font-size: 11px; font-weight: 800; letter-spacing: 0.02em; }
-    .status-pill { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); white-space: nowrap; }
+    .status-pill { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--white); color: var(--black); border: 1.5px dashed var(--black); white-space: nowrap; }
     .offer { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-size: 13px; }
     .offer .offer-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .mine-block { padding: 8px 0; border-bottom: 1px solid var(--border); }
@@ -91,8 +110,9 @@
     .mine-item { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
     .quota-row { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
     .quota-pill { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); }
-    .quota-pill.ok { background: var(--ok-bg); color: var(--ok); }
-    .quota-pill.open { background: var(--pending-bg); color: var(--pending); }
+    .quota-pill.open { background: var(--white); color: var(--black); border: 1.5px dashed rgba(23, 21, 15, 0.45); }
+    .quota-pill.ok.winter { background: var(--black); color: var(--white); }
+    .quota-pill.ok.sommer { background: var(--yellow); color: var(--black); }
     table.overview { width: 100%; border-collapse: collapse; font-size: 13px; }
     table.overview th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-dim); padding: 4px 6px; border-bottom: 1px solid var(--border); }
     table.overview td { padding: 7px 6px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
@@ -104,17 +124,17 @@
     .add-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 10px; }
     .add-form input, .add-form select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; color: var(--ink); font-size: 16px; width: 100%; }
     .add-form label { font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 3px; }
-    .history-toggle { font-size: 13px; font-weight: 700; color: var(--accent-text); background: none; border: none; cursor: pointer; padding: 0; }
+    .history-toggle { font-size: 13px; font-weight: 700; color: var(--black); text-decoration: underline; background: none; border: none; cursor: pointer; padding: 0; }
     .history-list { margin-top: 12px; max-height: 320px; overflow-y: auto; }
     .history-entry { display: flex; gap: 10px; font-size: 12.5px; padding: 6px 0; border-bottom: 1px solid var(--border); }
     .history-entry .ts { flex: none; width: 118px; color: var(--ink-dim); font-family: monospace; font-size: 11.5px; }
     .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-dim); margin-top: 10px; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-    .dot.ok { background: var(--ok); }
-    .dot.empty { background: var(--ink-dim); }
-    .dot.warn { background: var(--warn); }
-    .admin-chip { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 3px 9px; }
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(13, 31, 48, 0.55); display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; vertical-align: -1px; }
+    .dot.ok { background: var(--grey); border: 1px solid var(--border); }
+    .dot.empty { background: var(--white); border: 1.5px dashed rgba(23, 21, 15, 0.45); }
+    .dot.warn { background: var(--white); border: 2px dashed var(--black); }
+    .admin-chip { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; background: var(--black); color: var(--white); border-radius: 999px; padding: 3px 9px; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(23, 21, 15, 0.5); display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
     .modal-backdrop.open { display: flex; }
     .modal { background: var(--surface); border-radius: 14px; padding: 20px; max-width: 420px; width: 100%; box-shadow: var(--shadow); max-height: 86vh; overflow-y: auto; }
     .modal h3 { margin: 0 0 4px; font-size: 16px; }
@@ -157,8 +177,8 @@
   <section class="card" id="infoBox">
     <h2 class="section-title">Allgemeine Infos zum Essen</h2>
     <div class="edit-actions" role="group" aria-label="Infotext auswählen" style="margin-bottom:12px;">
-      <button class="btn small" id="infoSommerBtn" type="button">Sommer</button>
-      <button class="btn small" id="infoWinterBtn" type="button">Winter</button>
+      <button class="btn small season-btn is-sommer" id="infoSommerBtn" type="button">Sommer</button>
+      <button class="btn small season-btn is-winter" id="infoWinterBtn" type="button">Winter</button>
     </div>
     <div id="infoDisplay"></div>
   </section>
@@ -479,7 +499,6 @@
     ["sommer", "winter"].forEach(function (value) {
       var button = document.getElementById(value === "sommer" ? "infoSommerBtn" : "infoWinterBtn");
       button.setAttribute("aria-pressed", String(value === season));
-      button.classList.toggle("primary", value === season);
     });
     var sections = {};
     var current = null;
@@ -650,7 +669,7 @@
         '<span style="display:flex;gap:8px;align-items:center;">' + status + '<button class="btn small" data-open-mine="' + m.x.id + '">' + (m.entry.swap ? "Verwalten" : "Tauschen") + '</button></span></div>' +
         (m.entry.swap ? offersHtml(m.x.id, m.entry) : "") + '</div>';
     }).join("") : '<p class="empty-state">Keine Termine.</p>';
-    el.innerHTML += '<div class="quota-row"><span class="quota-pill ' + (winter >= 1 ? "ok" : "open") + '">Winter ' + winter + '/1</span><span class="quota-pill ' + (sommer >= 2 ? "ok" : "open") + '">Sommer ' + sommer + '/2</span></div>';
+    el.innerHTML += '<div class="quota-row"><span class="quota-pill winter ' + (winter >= 1 ? "ok" : "open") + '">Winter ' + winter + '/1</span><span class="quota-pill sommer ' + (sommer >= 2 ? "ok" : "open") + '">Sommer ' + sommer + '/2</span></div>';
     el.querySelectorAll("[data-open-mine]").forEach(b => { b.onclick = () => openMySlotModal(b.getAttribute("data-open-mine")); });
     bindOfferButtons(el);
   }
